@@ -1,7 +1,8 @@
 import { supabaseServer } from "@/lib/supabase/server";
 
 export default async function Home() {
-  const supabase = supabaseServer();
+  const supabase = await supabaseServer();
+
 
   const { data, error } = await supabase
     .from("claims_with_state")
