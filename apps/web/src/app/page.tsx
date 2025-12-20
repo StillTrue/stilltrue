@@ -3,6 +3,9 @@ import { supabaseServer } from "@/lib/supabase/server";
 export default async function Home() {
   const supabase = await supabaseServer();
 
+  const {
+    data: { user }
+  } = await supabase.auth.getUser();
 
   const { data, error } = await supabase
     .from("claims_with_state")
@@ -13,6 +16,13 @@ export default async function Home() {
   return (
     <main className="mx-auto max-w-3xl px-6 py-12">
       <h1 className="text-3xl font-semibold">StillTrue</h1>
+
+      {user ? (
+        <p className="mt-2 text-xs text-neutral-500">Signed in as {user.email}</p>
+      ) : (
+        <p className="mt-2 text-xs text-neutral-500">Not signed in</p>
+      )}
+
       <p className="mt-3 text-sm text-neutral-600">
         Claims (from <code>public.claims_with_state</code>)
       </p>
@@ -20,9 +30,7 @@ export default async function Home() {
       {error ? (
         <div className="mt-10 rounded-2xl border border-red-200 bg-red-50 p-6 text-sm">
           <div className="font-medium">Query failed</div>
-          <div className="mt-2 text-neutral-700">
-            {error.message}
-          </div>
+          <div className="mt-2 text-neutral-700">{error.message}</div>
         </div>
       ) : (
         <div className="mt-10 space-y-3">
