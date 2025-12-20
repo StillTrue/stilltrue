@@ -2,6 +2,15 @@ import { NextResponse, type NextRequest } from "next/server";
 import { createServerClient } from "@supabase/ssr";
 
 export async function middleware(request: NextRequest) {
+  const { pathname } = request.nextUrl;
+
+  // Allow these routes through without auth
+  const isPublic =
+    pathname === "/login" ||
+    pathname.startsWith("/auth/callback") ||
+    pathname.startsWith("/_next") ||
+    pathname === "/favicon.ico";
+
   let response = NextResponse.next({ request });
 
   const supabase = createServerClient(
@@ -22,19 +31,21 @@ export async function middleware(request: NextRequest) {
     }
   );
 
-  // Refresh session if needed (does not throw if not logged in)
-  await supabase.auth.getUser();
+  // This is the auth check
+  const {
+    data: { user }
+  } = await supabase.auth.getUser();
+
+  if (!user && !isPublic) {
+    const url = request.nextUrl.clone();
+    url.pathname = "/login";
+    url.searchParams.set("next", pathname);
+    return NextResponse.redirect(url);
+  }
 
   return response;
 }
 
 export const config = {
-  matcher: [
-    /*
-      Run middleware on all routes except:
-      - Next.js internals
-      - static assets
-    */
-    "/((?!_next/static|_next/image|favicon.ico).*)"
-  ]
+  matcher: ["/((?!_next/static|_next/image|favicon.ico).*)"]
 };
