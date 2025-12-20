@@ -5,9 +5,8 @@ import { cookies } from "next/headers";
 export async function POST() {
   const cookieStore = await cookies();
 
-  const response = NextResponse.redirect(
-    new URL("/login", "https://stilltrue.vercel.app")
-  );
+  // Redirect to "/" so proxy enforces auth and adds ?next=%2F
+  const response = NextResponse.redirect(new URL("/", "https://stilltrue.vercel.app"));
 
   const supabase = createServerClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
