@@ -1,10 +1,10 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { Suspense, useEffect, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { supabaseBrowser } from "@/lib/supabase/client";
 
-export default function LoginPage() {
+function LoginInner() {
   const router = useRouter();
   const searchParams = useSearchParams();
 
@@ -12,15 +12,14 @@ export default function LoginPage() {
   const [status, setStatus] = useState<"idle" | "sending" | "sent" | "error">("idle");
   const [message, setMessage] = useState<string | null>(null);
 
-  // ✅ If Supabase sends the user back to /login?code=...,
-  // immediately forward to /auth/callback?code=... so the server can exchange it for cookies.
   useEffect(() => {
     const code = searchParams.get("code");
     if (!code) return;
 
     const next = searchParams.get("next") ?? "/";
-    const url = `/auth/callback?code=${encodeURIComponent(code)}&next=${encodeURIComponent(next)}`;
-    router.replace(url);
+    router.replace(
+      `/auth/callback?code=${encodeURIComponent(code)}&next=${encodeURIComponent(next)}`
+    );
   }, [router, searchParams]);
 
   const onSubmit = async (e: React.FormEvent) => {
@@ -29,8 +28,6 @@ export default function LoginPage() {
     setMessage(null);
 
     const supabase = supabaseBrowser();
-
-    // Use the current origin; Vercel is stable here.
     const origin = window.location.origin;
 
     const { error } = await supabase.auth.signInWithOtp({
@@ -53,7 +50,9 @@ export default function LoginPage() {
   return (
     <main className="mx-auto max-w-md px-6 py-12">
       <h1 className="text-2xl font-semibold">Login</h1>
-      <p className="mt-2 text-sm text-neutral-600">We use email sign-in links. No passwords.</p>
+      <p className="mt-2 text-sm text-neutral-600">
+        We use email sign-in links. No passwords.
+      </p>
 
       <form onSubmit={onSubmit} className="mt-8 space-y-4">
         <label className="block">
@@ -81,5 +80,13 @@ export default function LoginPage() {
         ) : null}
       </form>
     </main>
+  );
+}
+
+export default function LoginPage() {
+  return (
+    <Suspense fallback={<div />}>
+      <LoginInner />
+    </Suspense>
   );
 }
