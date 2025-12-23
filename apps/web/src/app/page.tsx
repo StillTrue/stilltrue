@@ -15,13 +15,28 @@ export default async function Home() {
 
   return (
     <main className="mx-auto max-w-3xl px-6 py-12">
-      <h1 className="text-3xl font-semibold">StillTrue</h1>
+      <div className="flex items-start justify-between gap-4">
+        <div>
+          <h1 className="text-3xl font-semibold">StillTrue</h1>
 
-      {user ? (
-        <p className="mt-2 text-xs text-neutral-500">Signed in as {user.email}</p>
-      ) : (
-        <p className="mt-2 text-xs text-neutral-500">Not signed in</p>
-      )}
+          {user ? (
+            <p className="mt-2 text-xs text-neutral-500">Signed in as {user.email}</p>
+          ) : (
+            <p className="mt-2 text-xs text-neutral-500">Not signed in</p>
+          )}
+        </div>
+
+        {user ? (
+          <form action="/auth/logout" method="post">
+            <button
+              type="submit"
+              className="rounded-xl border px-3 py-2 text-sm font-medium"
+            >
+              Log out
+            </button>
+          </form>
+        ) : null}
+      </div>
 
       <p className="mt-3 text-sm text-neutral-600">
         Claims (from <code>public.claims_with_state</code>)
