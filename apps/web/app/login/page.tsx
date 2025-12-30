@@ -39,43 +39,63 @@ export default async function LoginPage({
         display: "flex",
         alignItems: "center",
         justifyContent: "center",
-        background: "#f8fafc",
+        background: "#f3f4f6", // soft neutral, not white
       }}
     >
       <div
         style={{
-          width: 380,
+          width: 420,
           background: "#ffffff",
-          borderRadius: 14,
-          padding: 32,
+          borderRadius: 12,
           boxShadow:
-            "0 10px 25px rgba(0,0,0,0.05), 0 4px 10px rgba(0,0,0,0.03)",
+            "0 12px 30px rgba(0,0,0,0.08)",
+          overflow: "hidden",
         }}
       >
-        <div style={{ marginBottom: 24 }}>
-          <h1
+        {/* Header */}
+        <div
+          style={{
+            padding: "28px 32px 20px",
+            borderBottom: "1px solid #e5e7eb",
+            textAlign: "center",
+          }}
+        >
+          {/* Placeholder for future logo */}
+          <div
             style={{
-              fontSize: 22,
+              fontSize: 20,
               fontWeight: 700,
-              marginBottom: 6,
               letterSpacing: "-0.01em",
+              color: "#374151",
+              marginBottom: 6,
             }}
           >
             StillTrue
-          </h1>
-          <p style={{ color: "#6b7280", fontSize: 14, margin: 0 }}>
-            Sign in to continue
-          </p>
+          </div>
+          <div
+            style={{
+              fontSize: 15,
+              color: "#6b7280",
+            }}
+          >
+            Sign in to StillTrue
+          </div>
         </div>
 
-        <form action="/auth/login" method="post">
-          <div style={{ marginBottom: 16 }}>
+        {/* Form */}
+        <form
+          action="/auth/login"
+          method="post"
+          style={{ padding: "28px 32px 32px" }}
+        >
+          <div style={{ marginBottom: 18 }}>
             <label
               htmlFor="email"
               style={{
                 display: "block",
                 fontSize: 13,
                 fontWeight: 600,
+                color: "#374151",
                 marginBottom: 6,
               }}
             >
@@ -86,24 +106,26 @@ export default async function LoginPage({
               name="email"
               type="email"
               required
-              placeholder="you@example.com"
+              placeholder="yourname@example.com"
               style={{
                 width: "100%",
-                padding: "10px 12px",
-                borderRadius: 10,
-                border: "1px solid #e5e7eb",
+                padding: "11px 12px",
+                borderRadius: 6,
+                border: "1px solid #d1d5db",
                 fontSize: 14,
+                background: "#ffffff",
               }}
             />
           </div>
 
-          <div style={{ marginBottom: 20 }}>
+          <div style={{ marginBottom: 24 }}>
             <label
               htmlFor="password"
               style={{
                 display: "block",
                 fontSize: 13,
                 fontWeight: 600,
+                color: "#374151",
                 marginBottom: 6,
               }}
             >
@@ -117,10 +139,11 @@ export default async function LoginPage({
               placeholder="••••••••"
               style={{
                 width: "100%",
-                padding: "10px 12px",
-                borderRadius: 10,
-                border: "1px solid #e5e7eb",
+                padding: "11px 12px",
+                borderRadius: 6,
+                border: "1px solid #d1d5db",
                 fontSize: 14,
+                background: "#ffffff",
               }}
             />
           </div>
@@ -136,18 +159,31 @@ export default async function LoginPage({
             style={{
               width: "100%",
               padding: "12px 14px",
-              borderRadius: 10,
+              borderRadius: 6,
               border: "none",
-              background: "#2563eb",
+              background: "#5b7fa6", // muted pastel blue
               color: "#ffffff",
               fontWeight: 600,
-              fontSize: 14,
+              fontSize: 15,
               cursor: "pointer",
             }}
           >
             Sign in
           </button>
         </form>
+
+        {/* Footer */}
+        <div
+          style={{
+            padding: "14px 32px",
+            borderTop: "1px solid #e5e7eb",
+            textAlign: "center",
+            fontSize: 13,
+            color: "#6b7280",
+          }}
+        >
+          Don’t have an account? Contact your administrator
+        </div>
       </div>
     </main>
   );
