@@ -1,9 +1,0 @@
-{
-  "name": "stilltrue",
-  "private": true,
-  "packageManager": "pnpm@9",
-  "scripts": {
-    "lint": "echo \"(later)\"",
-    "typecheck": "echo \"(later)\""
-  }
-}
