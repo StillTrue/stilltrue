@@ -55,7 +55,6 @@ export default async function LoginPage({
         background: "#f3f4f6",
       }}
     >
-      {/* Neutralise browser autofill tint */}
       <style>{`
         input:-webkit-autofill,
         input:-webkit-autofill:hover,
@@ -75,7 +74,7 @@ export default async function LoginPage({
           overflow: "hidden",
         }}
       >
-        {/* Header with logo */}
+        {/* Header */}
         <div
           style={{
             padding: "26px 32px 18px",
@@ -89,10 +88,6 @@ export default async function LoginPage({
             height={32}
             style={{ display: "inline-block", marginBottom: 10 }}
           />
-
-          <div style={{ fontSize: 15, color: "#6b7280" }}>
-            Sign in to StillTrue
-          </div>
         </div>
 
         {/* Form */}
@@ -120,7 +115,6 @@ export default async function LoginPage({
               type="email"
               autoComplete="email"
               required
-              placeholder="yourname@example.com"
               style={inputStyle}
             />
           </div>
@@ -144,7 +138,6 @@ export default async function LoginPage({
               type="password"
               autoComplete="current-password"
               required
-              placeholder="••••••••"
               style={inputStyle}
             />
           </div>
