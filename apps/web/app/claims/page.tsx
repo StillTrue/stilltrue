@@ -65,9 +65,9 @@ export default async function ClaimsPage() {
   const supabase = await createSupabaseServerClient();
 
   // Minimal, member-safe projection only.
-  // NOTE: If any of these columns don't exist, Supabase will error and we'll show the exported keys.
+  // NOTE: we intentionally do NOT select "id" because the view may not expose it.
   const select =
-    "id,text,claim_text,claim,visibility,retired_at,is_retired,owner_name,owner_display_name,owner_email,email";
+    "text,claim_text,claim,visibility,retired_at,is_retired,owner_name,owner_display_name,owner_email,email";
 
   const { data, error } = await supabase
     .from("claims_visible_to_member")
@@ -95,16 +95,6 @@ export default async function ClaimsPage() {
             Query error
           </p>
           <p style={{ margin: 0, color: "#6b7280" }}>{error.message}</p>
-
-          <div style={{ marginTop: 12 }}>
-            <p style={{ margin: 0, fontWeight: 600, marginBottom: 6 }}>
-              What to paste back
-            </p>
-            <p style={{ margin: 0, color: "#6b7280" }}>
-              Paste this exact error message so we can match the real column
-              names in <code>claims_visible_to_member</code>.
-            </p>
-          </div>
         </div>
       </main>
     );
@@ -161,10 +151,10 @@ export default async function ClaimsPage() {
       ) : (
         <ul style={{ listStyle: "none", padding: 0, margin: 0 }}>
           {rows.map((row, idx) => {
+            // Use a stable key if we can infer one, otherwise fallback to idx.
             const key =
-              typeof row.id === "string" || typeof row.id === "number"
-                ? String(row.id)
-                : String(idx);
+              pickString(row, ["claim_id", "id", "uuid", "slug", "created_at"]) ??
+              String(idx);
 
             const visibilityRaw = row["visibility"];
             const owner = ownerName(row);
