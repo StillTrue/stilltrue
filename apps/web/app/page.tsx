@@ -1,6 +1,5 @@
 // apps/web/app/page.tsx
 import Link from "next/link";
-
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 
 type WorkspaceRow = {
@@ -15,8 +14,9 @@ type WorkspaceRow = {
 export default async function HomePage() {
   const supabase = await createSupabaseServerClient();
 
-  const { data: userData } = await supabase.auth.getUser();
-  const user = userData?.user;
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
 
   const { data: memberships, error } = (await supabase
     .from("profiles")
@@ -38,88 +38,173 @@ export default async function HomePage() {
   }
   const workspaces = Array.from(unique.values());
 
+  const pageBg = "#f3f4f6";
+  const cardBg = "#ffffff";
+  const border = "#e5e7eb";
+  const text = "#111827";
+  const muted = "#6b7280";
+  const muted2 = "#374151";
+  const buttonBlue = "#5b7fa6";
+
+  const pillStyle: React.CSSProperties = {
+    display: "inline-flex",
+    alignItems: "center",
+    justifyContent: "center",
+    padding: "10px 12px",
+    borderRadius: 6,
+    border: `1px solid ${border}`,
+    background: "#ffffff",
+    color: text,
+    fontWeight: 600,
+    fontSize: 13,
+    textDecoration: "none",
+    cursor: "pointer",
+    lineHeight: 1,
+  };
+
+  const primaryStyle: React.CSSProperties = {
+    ...pillStyle,
+    border: "none",
+    background: buttonBlue,
+    color: "#ffffff",
+  };
+
   return (
-    <main className="min-h-screen bg-white">
-      <div className="mx-auto flex min-h-screen max-w-5xl flex-col px-6 py-10">
+    <main
+      style={{
+        minHeight: "100vh",
+        background: pageBg,
+        padding: "40px 16px",
+      }}
+    >
+      <div style={{ maxWidth: 980, margin: "0 auto" }}>
         {/* Top bar */}
-        <header className="flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <img
-              src="/brand/stilltrue-logo.svg"
-              alt="StillTrue"
-              className="h-8 w-auto"
-            />
-            <div className="leading-tight">
-              <h1 className="text-base font-semibold text-slate-900">Home</h1>
-              <p className="text-sm text-slate-600">
+        <div
+          style={{
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "space-between",
+            gap: 12,
+            marginBottom: 18,
+          }}
+        >
+          <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+            <img src="/brand/stilltrue-logo.svg" alt="StillTrue" height={32} />
+            <div>
+              <div style={{ fontSize: 18, fontWeight: 700, color: text, lineHeight: 1.2 }}>
+                Home
+              </div>
+              <div style={{ fontSize: 13, color: muted }}>
                 {user?.email ? `Signed in as ${user.email}` : "Signed in"}
-              </p>
+              </div>
             </div>
           </div>
 
-          <div className="flex items-center gap-2">
-            <Link
-              href="/claims"
-              className="rounded-md border border-slate-200 bg-white px-3 py-2 text-sm font-medium text-slate-900 shadow-sm hover:bg-slate-50"
-            >
+          <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+            <Link href="/claims" style={pillStyle}>
               View claims
             </Link>
 
-            <Link
-              href="/auth/logout"
-              className="rounded-md bg-slate-900 px-3 py-2 text-sm font-medium text-white shadow-sm hover:bg-slate-800"
-            >
-              Logout
-            </Link>
+            {/* IMPORTANT: logout route is a POST handler → must be a form submit (Link causes 405). */}
+            <form action="/auth/logout" method="post" style={{ margin: 0 }}>
+              <button type="submit" style={primaryStyle}>
+                Logout
+              </button>
+            </form>
           </div>
-        </header>
+        </div>
 
-        {/* Content */}
-        <section className="mt-10">
-          <div className="rounded-2xl border border-slate-200 bg-white shadow-sm">
-            <div className="border-b border-slate-100 px-6 py-5">
-              <h2 className="text-sm font-semibold text-slate-900">Workspaces</h2>
-              <p className="mt-1 text-sm text-slate-600">
-                Choose a context. Claims will be scoped under a workspace later.
-              </p>
+        {/* Workspaces card */}
+        <div
+          style={{
+            background: cardBg,
+            borderRadius: 12,
+            boxShadow: "0 12px 30px rgba(0,0,0,0.08)",
+            overflow: "hidden",
+            border: `1px solid ${border}`,
+          }}
+        >
+          <div
+            style={{
+              padding: "18px 22px",
+              borderBottom: `1px solid ${border}`,
+            }}
+          >
+            <div style={{ fontSize: 13, fontWeight: 700, color: muted2, marginBottom: 6 }}>
+              Workspaces
             </div>
-
-            {error ? (
-              <div className="px-6 py-6">
-                <p className="text-sm font-medium text-slate-900">Couldn’t load workspaces</p>
-                <p className="mt-1 text-sm text-slate-600">{error.message}</p>
-              </div>
-            ) : workspaces.length === 0 ? (
-              <div className="px-6 py-8">
-                <p className="text-sm font-medium text-slate-900">No workspaces yet</p>
-                <p className="mt-1 text-sm text-slate-600">
-                  This is a valid state. You’ll be able to create or accept an invite later.
-                </p>
-              </div>
-            ) : (
-              <ul className="divide-y divide-slate-100">
-                {workspaces.map((ws) => (
-                  <li key={ws.id} className="flex items-center justify-between px-6 py-5">
-                    <div className="min-w-0">
-                      <p className="truncate text-sm font-medium text-slate-900">{ws.name}</p>
-                      <p className="mt-0.5 text-xs text-slate-600">
-                        Workspace{ws.status ? ` • ${ws.status}` : ""}
-                      </p>
-                    </div>
-
-                    {/* Navigation-only for now; no workspace routes yet */}
-                    <span className="rounded-md border border-slate-200 bg-slate-50 px-3 py-2 text-sm font-medium text-slate-700">
-                      Coming soon
-                    </span>
-                  </li>
-                ))}
-              </ul>
-            )}
+            <div style={{ fontSize: 13, color: muted }}>
+              Choose a context. Claims will be scoped under a workspace later.
+            </div>
           </div>
-        </section>
 
-        {/* subtle footer spacing */}
-        <div className="flex-1" />
+          {error ? (
+            <div style={{ padding: "18px 22px" }}>
+              <div style={{ fontSize: 14, fontWeight: 700, color: text }}>Couldn’t load workspaces</div>
+              <div style={{ marginTop: 6, fontSize: 13, color: muted }}>{error.message}</div>
+            </div>
+          ) : workspaces.length === 0 ? (
+            <div style={{ padding: "22px" }}>
+              <div style={{ fontSize: 14, fontWeight: 700, color: text }}>No workspaces yet</div>
+              <div style={{ marginTop: 6, fontSize: 13, color: muted }}>
+                This is a valid state. You’ll be able to create or accept an invite later.
+              </div>
+            </div>
+          ) : (
+            <div>
+              {workspaces.map((ws, idx) => (
+                <div
+                  key={ws.id}
+                  style={{
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "space-between",
+                    gap: 12,
+                    padding: "16px 22px",
+                    borderTop: idx === 0 ? "none" : `1px solid ${border}`,
+                  }}
+                >
+                  <div style={{ minWidth: 0 }}>
+                    <div
+                      style={{
+                        fontSize: 14,
+                        fontWeight: 700,
+                        color: text,
+                        whiteSpace: "nowrap",
+                        overflow: "hidden",
+                        textOverflow: "ellipsis",
+                      }}
+                    >
+                      {ws.name}
+                    </div>
+                    <div style={{ marginTop: 2, fontSize: 12, color: muted }}>
+                      Workspace{ws.status ? ` • ${ws.status}` : ""}
+                    </div>
+                  </div>
+
+                  <span
+                    style={{
+                      display: "inline-flex",
+                      alignItems: "center",
+                      justifyContent: "center",
+                      padding: "10px 12px",
+                      borderRadius: 6,
+                      border: `1px solid ${border}`,
+                      background: "#f9fafb",
+                      color: muted2,
+                      fontWeight: 600,
+                      fontSize: 13,
+                      lineHeight: 1,
+                      whiteSpace: "nowrap",
+                    }}
+                  >
+                    Coming soon
+                  </span>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
       </div>
     </main>
   );
