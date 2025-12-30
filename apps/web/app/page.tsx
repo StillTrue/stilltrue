@@ -1,7 +1,7 @@
 // apps/web/app/page.tsx
 import Link from "next/link";
 
-import { createClient } from "@/lib/supabase/server";
+import { createSupabaseServerClient } from "@/lib/supabase/server";
 
 type WorkspaceRow = {
   workspace_id: string | null;
@@ -13,15 +13,13 @@ type WorkspaceRow = {
 };
 
 export default async function HomePage() {
-  const supabase = await createClient();
+  const supabase = await createSupabaseServerClient();
 
   // Middleware already gates private routes, but keeping this defensive.
   const { data: userData } = await supabase.auth.getUser();
   const user = userData?.user;
 
-  // Fetch the workspaces the current user belongs to.
-  // Assumption (aligned to Build Plan intent): memberships are represented via `profiles`
-  // with a `workspace_id` and a relationship to `workspaces`.
+  // Fetch workspaces user belongs to (visual + navigation only).
   const { data: memberships, error } = await supabase
     .from("profiles")
     .select("workspace_id, workspaces(id, name, status)")
@@ -82,9 +80,7 @@ export default async function HomePage() {
             {error ? (
               <div className="p-5">
                 <p className="text-sm font-medium text-slate-900">Couldn’t load workspaces</p>
-                <p className="mt-1 text-sm text-slate-600">
-                  {error.message}
-                </p>
+                <p className="mt-1 text-sm text-slate-600">{error.message}</p>
               </div>
             ) : workspaces.length === 0 ? (
               <div className="p-6">
@@ -100,8 +96,7 @@ export default async function HomePage() {
                     <div className="min-w-0">
                       <p className="truncate text-sm font-medium text-slate-900">{ws.name}</p>
                       <p className="mt-0.5 text-xs text-slate-600">
-                        Workspace
-                        {ws.status ? ` • ${ws.status}` : ""}
+                        Workspace{ws.status ? ` • ${ws.status}` : ""}
                       </p>
                     </div>
 
