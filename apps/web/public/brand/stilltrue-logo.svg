@@ -1,32 +1,36 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <svg xmlns="http://www.w3.org/2000/svg"
-     width="160" height="32" viewBox="0 0 160 32"
+     viewBox="0 0 120 32"
+     width="120" height="32"
      role="img" aria-label="StillTrue logo">
-  <!--
-    StillTrue logo (Claim vs Truth concept)
-    - Transparent background
-    - Target height: 32px
-    - Colors:
-      - Text: #374151
-      - Accent: #5b7fa6
-  -->
-  <g fill="none" stroke-linecap="round" stroke-linejoin="round">
-    <!-- Icon: overlapping squares (claim vs truth) -->
-    <!-- Back square (outline) -->
-    <rect x="2.5" y="4.5" width="22" height="22" rx="4"
-          stroke="#5b7fa6" stroke-width="2" opacity="0.75"/>
-    <!-- Front square (filled) -->
-    <rect x="9.5" y="9.5" width="22" height="22" rx="4"
-          fill="#5b7fa6" opacity="0.45" stroke="#5b7fa6" stroke-width="1.5"/>
-  </g>
+  <!-- Centered StillTrue logo (Claim vs Truth) -->
 
-  <!-- Wordmark -->
-  <text x="42" y="22"
-        fill="#374151"
-        font-family="ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, 'Apple Color Emoji','Segoe UI Emoji'"
-        font-size="18"
-        font-weight="600"
-        letter-spacing="0.2">
-    StillTrue
-  </text>
+  <!-- Center group -->
+  <g transform="translate(60 16)">
+    <!-- Icon -->
+    <g transform="translate(-48 -11)">
+      <!-- Back square -->
+      <rect x="0" y="0" width="22" height="22" rx="4"
+            fill="none"
+            stroke="#5b7fa6"
+            stroke-width="2"
+            opacity="0.75"/>
+      <!-- Front square -->
+      <rect x="7" y="3" width="22" height="22" rx="4"
+            fill="#5b7fa6"
+            opacity="0.45"
+            stroke="#5b7fa6"
+            stroke-width="1.5"/>
+    </g>
+
+    <!-- Wordmark -->
+    <text x="-12" y="1"
+          fill="#374151"
+          font-family="ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial"
+          font-size="18"
+          font-weight="600"
+          dominant-baseline="middle">
+      StillTrue
+    </text>
+  </g>
 </svg>
