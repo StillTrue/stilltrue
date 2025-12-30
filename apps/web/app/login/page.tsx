@@ -32,6 +32,21 @@ export default async function LoginPage({
     redirect(searchParams?.next || "/");
   }
 
+  // Shared input styles to keep fields white and consistent.
+  const inputStyle: React.CSSProperties = {
+    width: "100%",
+    padding: "11px 12px",
+    borderRadius: 6,
+    border: "1px solid #d1d5db",
+    fontSize: 14,
+    backgroundColor: "#ffffff",
+    color: "#111827",
+    outline: "none",
+    // Avoid odd OS/browser appearance changes
+    appearance: "none",
+    WebkitAppearance: "none",
+  };
+
   return (
     <main
       style={{
@@ -39,20 +54,32 @@ export default async function LoginPage({
         display: "flex",
         alignItems: "center",
         justifyContent: "center",
-        background: "#f3f4f6", // soft neutral, not white
+        background: "#f3f4f6",
       }}
     >
+      {/* Inline CSS to neutralize browser autofill tinting */}
+      <style>{`
+        input:-webkit-autofill,
+        input:-webkit-autofill:hover,
+        input:-webkit-autofill:focus,
+        textarea:-webkit-autofill,
+        select:-webkit-autofill {
+          -webkit-text-fill-color: #111827 !important;
+          -webkit-box-shadow: 0 0 0px 1000px #ffffff inset !important;
+          box-shadow: 0 0 0px 1000px #ffffff inset !important;
+          transition: background-color 9999s ease-out 0s !important;
+        }
+      `}</style>
+
       <div
         style={{
           width: 420,
           background: "#ffffff",
           borderRadius: 12,
-          boxShadow:
-            "0 12px 30px rgba(0,0,0,0.08)",
+          boxShadow: "0 12px 30px rgba(0,0,0,0.08)",
           overflow: "hidden",
         }}
       >
-        {/* Header */}
         <div
           style={{
             padding: "28px 32px 20px",
@@ -60,7 +87,6 @@ export default async function LoginPage({
             textAlign: "center",
           }}
         >
-          {/* Placeholder for future logo */}
           <div
             style={{
               fontSize: 20,
@@ -72,17 +98,11 @@ export default async function LoginPage({
           >
             StillTrue
           </div>
-          <div
-            style={{
-              fontSize: 15,
-              color: "#6b7280",
-            }}
-          >
+          <div style={{ fontSize: 15, color: "#6b7280" }}>
             Sign in to StillTrue
           </div>
         </div>
 
-        {/* Form */}
         <form
           action="/auth/login"
           method="post"
@@ -105,16 +125,10 @@ export default async function LoginPage({
               id="email"
               name="email"
               type="email"
+              autoComplete="email"
               required
               placeholder="yourname@example.com"
-              style={{
-                width: "100%",
-                padding: "11px 12px",
-                borderRadius: 6,
-                border: "1px solid #d1d5db",
-                fontSize: 14,
-                background: "#ffffff",
-              }}
+              style={inputStyle}
             />
           </div>
 
@@ -135,16 +149,12 @@ export default async function LoginPage({
               id="password"
               name="password"
               type="password"
+              autoComplete="current-password"
               required
               placeholder="••••••••"
-              style={{
-                width: "100%",
-                padding: "11px 12px",
-                borderRadius: 6,
-                border: "1px solid #d1d5db",
-                fontSize: 14,
-                background: "#ffffff",
-              }}
+              // Explicitly ensure password masking behaves normally
+              inputMode="text"
+              style={inputStyle}
             />
           </div>
 
@@ -161,7 +171,7 @@ export default async function LoginPage({
               padding: "12px 14px",
               borderRadius: 6,
               border: "none",
-              background: "#5b7fa6", // muted pastel blue
+              background: "#5b7fa6",
               color: "#ffffff",
               fontWeight: 600,
               fontSize: 15,
@@ -172,7 +182,6 @@ export default async function LoginPage({
           </button>
         </form>
 
-        {/* Footer */}
         <div
           style={{
             padding: "14px 32px",
