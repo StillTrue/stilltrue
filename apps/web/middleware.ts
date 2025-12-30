@@ -1,5 +1,5 @@
 import { NextResponse, type NextRequest } from "next/server";
-import { createServerClient, type CookieOptions } from "@supabase/ssr";
+import { createServerClient } from "@supabase/ssr";
 
 function mustEnv(name: string) {
   const v = process.env[name];
@@ -7,28 +7,27 @@ function mustEnv(name: string) {
   return v;
 }
 
-function safeNextPath(url: URL) {
-  const p = url.pathname + url.search;
-  // prevent weirdness like // or absolute
-  if (!p.startsWith("/")) return "/";
-  if (p.startsWith("//")) return "/";
-  return p;
+function isPublicPath(pathname: string) {
+  // Public pages / routes
+  if (pathname === "/login") return true;
+  if (pathname.startsWith("/auth/")) return true;
+
+  // Next internals / static
+  if (pathname.startsWith("/_next/")) return true;
+  if (pathname === "/favicon.ico") return true;
+
+  return false;
 }
 
 export async function middleware(request: NextRequest) {
-  const { pathname } = request.nextUrl;
+  const { pathname, search } = request.nextUrl;
 
-  // Allow auth endpoints + login page + Next static assets
-  if (
-    pathname.startsWith("/auth/") ||
-    pathname === "/login" ||
-    pathname.startsWith("/_next/") ||
-    pathname === "/favicon.ico"
-  ) {
+  if (isPublicPath(pathname)) {
     return NextResponse.next();
   }
 
-  const cookiesToSet: Array<{ name: string; value: string; options?: CookieOptions }> = [];
+  // Create a response we can attach refreshed cookies to
+  const response = NextResponse.next();
 
   const supabase = createServerClient(
     mustEnv("NEXT_PUBLIC_SUPABASE_URL"),
@@ -39,7 +38,9 @@ export async function middleware(request: NextRequest) {
           return request.cookies.getAll();
         },
         setAll(toSet) {
-          cookiesToSet.push(...toSet);
+          for (const { name, value, options } of toSet) {
+            response.cookies.set(name, value, options);
+          }
         },
       },
     }
@@ -49,22 +50,20 @@ export async function middleware(request: NextRequest) {
     data: { user },
   } = await supabase.auth.getUser();
 
-  // Build the response we will return (and attach any refreshed cookies)
-  const res = user
-    ? NextResponse.next()
-    : NextResponse.redirect(
-        new URL(`/login?next=${encodeURIComponent(safeNextPath(request.nextUrl))}`, request.url),
-        307
-      );
-
-  for (const { name, value, options } of cookiesToSet) {
-    res.cookies.set(name, value, options);
+  if (!user) {
+    const nextPath = `${pathname}${search}`;
+    const loginUrl = request.nextUrl.clone();
+    loginUrl.pathname = "/login";
+    loginUrl.searchParams.set("next", nextPath);
+    return NextResponse.redirect(loginUrl, 307);
   }
 
-  return res;
+  return response;
 }
 
-// Apply to everything except Next internals
 export const config = {
-  matcher: ["/((?!_next/static|_next/image).*)"],
+  matcher: [
+    // Run on everything except static files (common extensions)
+    "/((?!.*\\.(?:css|js|map|png|jpg|jpeg|gif|svg|ico|webp|txt|woff|woff2)$).*)",
+  ],
 };
