@@ -32,7 +32,6 @@ export default async function LoginPage({
     redirect(searchParams?.next || "/");
   }
 
-  // Shared input styles to keep fields white and consistent.
   const inputStyle: React.CSSProperties = {
     width: "100%",
     padding: "11px 12px",
@@ -42,7 +41,6 @@ export default async function LoginPage({
     backgroundColor: "#ffffff",
     color: "#111827",
     outline: "none",
-    // Avoid odd OS/browser appearance changes
     appearance: "none",
     WebkitAppearance: "none",
   };
@@ -57,17 +55,14 @@ export default async function LoginPage({
         background: "#f3f4f6",
       }}
     >
-      {/* Inline CSS to neutralize browser autofill tinting */}
+      {/* Neutralise browser autofill tint */}
       <style>{`
         input:-webkit-autofill,
         input:-webkit-autofill:hover,
-        input:-webkit-autofill:focus,
-        textarea:-webkit-autofill,
-        select:-webkit-autofill {
+        input:-webkit-autofill:focus {
           -webkit-text-fill-color: #111827 !important;
           -webkit-box-shadow: 0 0 0px 1000px #ffffff inset !important;
           box-shadow: 0 0 0px 1000px #ffffff inset !important;
-          transition: background-color 9999s ease-out 0s !important;
         }
       `}</style>
 
@@ -80,29 +75,27 @@ export default async function LoginPage({
           overflow: "hidden",
         }}
       >
+        {/* Header with logo */}
         <div
           style={{
-            padding: "28px 32px 20px",
+            padding: "26px 32px 18px",
             borderBottom: "1px solid #e5e7eb",
             textAlign: "center",
           }}
         >
-          <div
-            style={{
-              fontSize: 20,
-              fontWeight: 700,
-              letterSpacing: "-0.01em",
-              color: "#374151",
-              marginBottom: 6,
-            }}
-          >
-            StillTrue
-          </div>
+          <img
+            src="/brand/stilltrue-logo.svg"
+            alt="StillTrue"
+            height={32}
+            style={{ display: "inline-block", marginBottom: 10 }}
+          />
+
           <div style={{ fontSize: 15, color: "#6b7280" }}>
             Sign in to StillTrue
           </div>
         </div>
 
+        {/* Form */}
         <form
           action="/auth/login"
           method="post"
@@ -152,8 +145,6 @@ export default async function LoginPage({
               autoComplete="current-password"
               required
               placeholder="••••••••"
-              // Explicitly ensure password masking behaves normally
-              inputMode="text"
               style={inputStyle}
             />
           </div>
@@ -182,6 +173,7 @@ export default async function LoginPage({
           </button>
         </form>
 
+        {/* Footer */}
         <div
           style={{
             padding: "14px 32px",
