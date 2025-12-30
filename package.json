@@ -1,0 +1,9 @@
+{
+  "name": "stilltrue",
+  "private": true,
+  "packageManager": "pnpm@10.26.2",
+  "scripts": {
+    "lint": "pnpm -C apps/web lint",
+    "typecheck": "pnpm -C apps/web typecheck"
+  }
+}
