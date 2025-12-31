@@ -35,6 +35,7 @@ export default async function WorkspacePage({
     textDecoration: "none",
     cursor: "pointer",
     lineHeight: 1,
+    whiteSpace: "nowrap",
   };
 
   const primaryStyle: React.CSSProperties = {
@@ -79,8 +80,13 @@ export default async function WorkspacePage({
             <Link href="/" style={pillStyle}>
               Home
             </Link>
+
+            <Link href={`/workspaces/${params.id}/claims`} style={pillStyle}>
+              Claims
+            </Link>
+
             <Link href="/claims" style={pillStyle}>
-              View claims
+              Global claims
             </Link>
 
             <form action="/auth/logout" method="post" style={{ margin: 0 }}>
@@ -120,6 +126,15 @@ export default async function WorkspacePage({
               This page exists to establish navigation and structure.
               <br />
               Claims, members, and settings will be added later.
+            </div>
+
+            <div style={{ marginTop: 14, display: "flex", gap: 10, flexWrap: "wrap" }}>
+              <Link href={`/workspaces/${params.id}/claims`} style={pillStyle}>
+                Go to workspace claims
+              </Link>
+              <Link href="/claims" style={pillStyle}>
+                View global member-safe claims
+              </Link>
             </div>
           </div>
         </div>
