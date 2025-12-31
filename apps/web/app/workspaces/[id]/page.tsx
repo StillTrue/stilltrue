@@ -77,22 +77,12 @@ export default async function WorkspacePage({
           </div>
 
           <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-            <Link href="/" style={pillStyle}>
-              Home
-            </Link>
-
-            <Link href={`/workspaces/${params.id}/claims`} style={pillStyle}>
-              Claims
-            </Link>
-
-            <Link href="/claims" style={pillStyle}>
-              Global claims
-            </Link>
+            <Link href="/" style={pillStyle}>Home</Link>
+            <Link href={`/workspaces/${params.id}/claims`} style={pillStyle}>Claims</Link>
+            <Link href="/claims" style={pillStyle}>Global claims</Link>
 
             <form action="/auth/logout" method="post" style={{ margin: 0 }}>
-              <button type="submit" style={primaryStyle}>
-                Logout
-              </button>
+              <button type="submit" style={primaryStyle}>Logout</button>
             </form>
           </div>
         </div>
@@ -107,17 +97,24 @@ export default async function WorkspacePage({
             border: `1px solid ${border}`,
           }}
         >
+          {/* 🔎 TEST VISIBILITY BLOCK */}
           <div
             style={{
-              padding: "18px 22px",
-              borderBottom: `1px solid ${border}`,
+              padding: "16px 22px",
+              borderBottom: `1px dashed ${border}`,
+              background: "#f9fafb",
             }}
           >
             <div style={{ fontSize: 13, fontWeight: 700, color: muted2 }}>
-              Workspace shell
+              Navigation test (temporary)
             </div>
-            <div style={{ marginTop: 6, fontSize: 13, color: muted }}>
-              ID: {params.id}
+            <div style={{ marginTop: 8, display: "flex", gap: 10, flexWrap: "wrap" }}>
+              <Link href={`/workspaces/${params.id}/claims`} style={pillStyle}>
+                → Go to workspace claims
+              </Link>
+              <Link href="/" style={pillStyle}>
+                → Back to home
+              </Link>
             </div>
           </div>
 
@@ -128,13 +125,8 @@ export default async function WorkspacePage({
               Claims, members, and settings will be added later.
             </div>
 
-            <div style={{ marginTop: 14, display: "flex", gap: 10, flexWrap: "wrap" }}>
-              <Link href={`/workspaces/${params.id}/claims`} style={pillStyle}>
-                Go to workspace claims
-              </Link>
-              <Link href="/claims" style={pillStyle}>
-                View global member-safe claims
-              </Link>
+            <div style={{ marginTop: 10, fontSize: 12, color: muted }}>
+              Workspace ID: {params.id}
             </div>
           </div>
         </div>
