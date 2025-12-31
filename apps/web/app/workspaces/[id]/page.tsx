@@ -9,13 +9,53 @@ type VisibleClaimRow = {
   owner_profile_id: string;
   created_at: string;
   retired_at: string | null;
-  text: string | null; // depending on the view shape
+  text: string | null; // depending on view shape
 };
+
+type FilterKey = "all" | "my" | "public" | "private";
+
+function chipStyle(active: boolean, border: string, muted2: string): React.CSSProperties {
+  return {
+    display: "inline-flex",
+    alignItems: "center",
+    justifyContent: "center",
+    padding: "9px 12px",
+    borderRadius: 999,
+    border: `1px solid ${border}`,
+    background: active ? "#eef2f7" : "#ffffff",
+    color: muted2,
+    fontWeight: 800,
+    fontSize: 12,
+    cursor: "pointer",
+    lineHeight: 1,
+    whiteSpace: "nowrap",
+    userSelect: "none",
+  };
+}
+
+function badgeStyle(border: string, muted2: string): React.CSSProperties {
+  return {
+    display: "inline-flex",
+    alignItems: "center",
+    gap: 6,
+    padding: "6px 10px",
+    borderRadius: 999,
+    border: `1px solid ${border}`,
+    background: "#f9fafb",
+    color: muted2,
+    fontSize: 12,
+    fontWeight: 800,
+    lineHeight: 1,
+    whiteSpace: "nowrap",
+  };
+}
 
 export default async function WorkspaceClaimsPage({
   params,
+  searchParams,
 }: {
   params: { id: string };
+  searchParams?: { filter?: string };
 }) {
   const supabase = await createSupabaseServerClient();
 
@@ -23,16 +63,23 @@ export default async function WorkspaceClaimsPage({
     data: { user },
   } = await supabase.auth.getUser();
 
-  // Get workspace name (member-safe via RLS policy on workspaces_select_member)
+  // Workspace (member-safe via RLS)
   const { data: ws } = await supabase
     .from("workspaces")
     .select("id, name, status")
     .eq("id", params.id)
     .maybeSingle();
 
-  // Member-safe claims list for this workspace.
-  // We reuse the same view used by /claims, but scoped to workspace_id.
-  // NOTE: if the view does not include `text`, we'll show a safe fallback.
+  // Determine "my" profile id for this workspace (used for owner-only UI)
+  const { data: myProfiles } = await supabase
+    .from("profiles")
+    .select("id, workspace_id")
+    .eq("workspace_id", params.id);
+
+  const myProfileId = myProfiles?.[0]?.id ?? null;
+
+  // Claims list (member-safe view)
+  // NOTE: If `text` does not exist in the view, you’ll see the fallback line.
   const { data: claims, error: claimsError } = (await supabase
     .from("claims_visible_to_member")
     .select("id, workspace_id, visibility, owner_profile_id, created_at, retired_at, text")
@@ -41,6 +88,11 @@ export default async function WorkspaceClaimsPage({
     data: VisibleClaimRow[] | null;
     error: { message: string } | null;
   };
+
+  // Filter selection from querystring (server component safe)
+  const raw = (searchParams?.filter ?? "all").toLowerCase();
+  const filter: FilterKey =
+    raw === "my" || raw === "public" || raw === "private" || raw === "all" ? (raw as FilterKey) : "all";
 
   const pageBg = "#f3f4f6";
   const cardBg = "#ffffff";
@@ -74,20 +126,34 @@ export default async function WorkspaceClaimsPage({
     color: "#ffffff",
   };
 
-  const badgeStyle: React.CSSProperties = {
-    display: "inline-flex",
-    alignItems: "center",
-    gap: 6,
-    padding: "6px 10px",
-    borderRadius: 999,
-    border: `1px solid ${border}`,
-    background: "#f9fafb",
-    color: muted2,
-    fontSize: 12,
-    fontWeight: 700,
-    lineHeight: 1,
-    whiteSpace: "nowrap",
+  const filtered = (claims ?? []).filter((c) => {
+    const isMine = myProfileId ? c.owner_profile_id === myProfileId : false;
+    const vis = (c.visibility ?? "").toLowerCase();
+
+    if (filter === "my") return isMine;
+    if (filter === "public") return vis === "public";
+    if (filter === "private") return isMine && vis === "private";
+    return true; // all
+  });
+
+  const counts = {
+    all: (claims ?? []).length,
+    my: (claims ?? []).filter((c) => (myProfileId ? c.owner_profile_id === myProfileId : false)).length,
+    public: (claims ?? []).filter((c) => (c.visibility ?? "").toLowerCase() === "public").length,
+    private: (claims ?? []).filter((c) => {
+      const isMine = myProfileId ? c.owner_profile_id === myProfileId : false;
+      return isMine && (c.visibility ?? "").toLowerCase() === "private";
+    }).length,
   };
+
+  // Owner-only state badge placeholder (no derived logic yet)
+  function ownerStateBadgePlaceholder() {
+    return (
+      <span style={{ ...badgeStyle(border, muted2), opacity: 0.75 }} title="Claim state (owner-only) will be derived later">
+        State: —
+      </span>
+    );
+  }
 
   return (
     <main
@@ -163,17 +229,34 @@ export default async function WorkspaceClaimsPage({
               padding: "16px 22px",
               borderBottom: `1px solid ${border}`,
               display: "flex",
-              alignItems: "baseline",
+              alignItems: "flex-start",
               justifyContent: "space-between",
               gap: 12,
+              flexWrap: "wrap",
             }}
           >
             <div>
               <div style={{ fontSize: 13, fontWeight: 700, color: muted2 }}>
                 Claims
               </div>
-              <div style={{ marginTop: 4, fontSize: 13, color: muted }}>
-                Public workspace claims + your private claims. No claim state is shown here.
+              <div style={{ marginTop: 4, fontSize: 13, color: muted, maxWidth: 680 }}>
+                Public workspace claims + your private claims. Claim state is shown only for claims you own (later).
+              </div>
+
+              {/* Filters */}
+              <div style={{ marginTop: 12, display: "flex", gap: 10, flexWrap: "wrap" }}>
+                <Link href={`/workspaces/${params.id}?filter=all`} style={chipStyle(filter === "all", border, muted2)}>
+                  All ({counts.all})
+                </Link>
+                <Link href={`/workspaces/${params.id}?filter=my`} style={chipStyle(filter === "my", border, muted2)}>
+                  My Claims ({counts.my})
+                </Link>
+                <Link href={`/workspaces/${params.id}?filter=private`} style={chipStyle(filter === "private", border, muted2)}>
+                  Private (Mine) ({counts.private})
+                </Link>
+                <Link href={`/workspaces/${params.id}?filter=public`} style={chipStyle(filter === "public", border, muted2)}>
+                  Public (Workspace) ({counts.public})
+                </Link>
               </div>
             </div>
 
@@ -184,8 +267,9 @@ export default async function WorkspaceClaimsPage({
                 ...primaryStyle,
                 opacity: 0.65,
                 cursor: "not-allowed",
+                alignSelf: "flex-start",
               }}
-              title="Create claim (modal flow coming soon)"
+              title="New claim (modal flow coming soon)"
             >
               + New claim
             </button>
@@ -200,87 +284,94 @@ export default async function WorkspaceClaimsPage({
                 {claimsError.message}
               </div>
             </div>
-          ) : (claims?.length ?? 0) === 0 ? (
+          ) : filtered.length === 0 ? (
             <div style={{ padding: "22px" }}>
               <div style={{ fontSize: 14, fontWeight: 800, color: text }}>
-                No claims yet
+                No claims in this view
               </div>
               <div style={{ marginTop: 6, fontSize: 13, color: muted }}>
-                This is a valid state. Claim creation will be added later via a modal.
+                Try a different filter. Claim creation will be added later via a modal.
               </div>
             </div>
           ) : (
             <div>
-              {(claims ?? []).map((c, idx) => (
-                <div
-                  key={c.id}
-                  style={{
-                    padding: "16px 22px",
-                    borderTop: idx === 0 ? "none" : `1px solid ${border}`,
-                    display: "flex",
-                    alignItems: "flex-start",
-                    justifyContent: "space-between",
-                    gap: 14,
-                  }}
-                >
-                  <div style={{ minWidth: 0, flex: 1 }}>
-                    <div
-                      style={{
-                        fontSize: 14,
-                        fontWeight: 800,
-                        color: text,
-                        lineHeight: 1.25,
-                        overflow: "hidden",
-                        textOverflow: "ellipsis",
-                        display: "-webkit-box",
-                        WebkitLineClamp: 2,
-                        WebkitBoxOrient: "vertical",
-                      }}
-                      title={c.text ?? undefined}
-                    >
-                      {c.text ?? "(Claim text hidden by view shape — will be wired next)"}
-                    </div>
+              {filtered.map((c, idx) => {
+                const isMine = myProfileId ? c.owner_profile_id === myProfileId : false;
+                const vis = (c.visibility ?? "").toLowerCase();
 
-                    <div style={{ marginTop: 8, display: "flex", gap: 8, flexWrap: "wrap" }}>
-                      <span style={badgeStyle}>
-                        Visibility: {c.visibility}
-                      </span>
-                      {c.retired_at ? (
-                        <span style={badgeStyle}>Retired</span>
-                      ) : null}
-                    </div>
-                  </div>
-
-                  <div style={{ textAlign: "right", flexShrink: 0 }}>
-                    <div style={{ fontSize: 12, color: muted }}>
-                      {new Date(c.created_at).toLocaleDateString()}
-                    </div>
-
-                    {/* Placeholder for modal actions later */}
-                    <div style={{ marginTop: 10 }}>
-                      <button
-                        type="button"
-                        disabled
+                return (
+                  <div
+                    key={c.id}
+                    style={{
+                      padding: "16px 22px",
+                      borderTop: idx === 0 ? "none" : `1px solid ${border}`,
+                      display: "flex",
+                      alignItems: "flex-start",
+                      justifyContent: "space-between",
+                      gap: 14,
+                    }}
+                  >
+                    <div style={{ minWidth: 0, flex: 1 }}>
+                      <div
                         style={{
-                          ...pillStyle,
-                          opacity: 0.6,
-                          cursor: "not-allowed",
-                          padding: "8px 10px",
-                          fontSize: 12,
+                          fontSize: 14,
+                          fontWeight: 800,
+                          color: text,
+                          lineHeight: 1.25,
+                          overflow: "hidden",
+                          textOverflow: "ellipsis",
+                          display: "-webkit-box",
+                          WebkitLineClamp: 2,
+                          WebkitBoxOrient: "vertical",
                         }}
-                        title="Open claim (modal coming soon)"
+                        title={c.text ?? undefined}
                       >
-                        Open
-                      </button>
+                        {c.text ?? "(Claim text hidden by view shape — will be wired next)"}
+                      </div>
+
+                      <div style={{ marginTop: 10, display: "flex", gap: 8, flexWrap: "wrap" }}>
+                        <span style={badgeStyle(border, muted2)}>
+                          Visibility: {vis || "—"}
+                        </span>
+
+                        {isMine ? <span style={badgeStyle(border, muted2)}>Mine</span> : null}
+
+                        {/* Owner-only state placeholder */}
+                        {isMine ? ownerStateBadgePlaceholder() : null}
+
+                        {c.retired_at ? <span style={badgeStyle(border, muted2)}>Retired</span> : null}
+                      </div>
+                    </div>
+
+                    <div style={{ textAlign: "right", flexShrink: 0 }}>
+                      <div style={{ fontSize: 12, color: muted }}>
+                        {new Date(c.created_at).toLocaleDateString()}
+                      </div>
+
+                      {/* Placeholder for modal actions later */}
+                      <div style={{ marginTop: 10 }}>
+                        <button
+                          type="button"
+                          disabled
+                          style={{
+                            ...pillStyle,
+                            opacity: 0.6,
+                            cursor: "not-allowed",
+                            padding: "8px 10px",
+                            fontSize: 12,
+                          }}
+                          title="Open claim (modal coming soon)"
+                        >
+                          Open
+                        </button>
+                      </div>
                     </div>
                   </div>
-                </div>
-              ))}
+                );
+              })}
             </div>
           )}
         </div>
-
-        {/* NOTE: we'll delete /claims and /workspaces/[id]/claims routes after this is confirmed */}
       </div>
     </main>
   );
