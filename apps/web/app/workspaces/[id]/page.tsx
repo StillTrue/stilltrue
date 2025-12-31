@@ -10,6 +10,12 @@ export default function WorkspaceClaimsPage({ params }: { params: { id: string }
   const supabase = createSupabaseBrowserClient();
   const router = useRouter();
 
+  // ✅ Freeze + assert workspace id so it can never be undefined in the RPC payload
+  const workspaceId = params?.id;
+  if (!workspaceId) {
+    throw new Error("Workspace ID missing from route params");
+  }
+
   const pageBg = "#f3f4f6";
   const cardBg = "#ffffff";
   const border = "#e5e7eb";
@@ -64,10 +70,9 @@ export default function WorkspaceClaimsPage({ params }: { params: { id: string }
     setSubmitting(true);
     setSubmitError(null);
 
-    // Call RPC with the exact argument names and types.
-    // NOTE: _visibility is claim_visibility enum ('private' | 'public')
+    // ✅ Use the frozen workspaceId (never undefined)
     const res = await supabase.rpc("create_claim_with_text", {
-      _workspace_id: params.id,
+      _workspace_id: workspaceId,
       _visibility: newVisibility,
       _review_cadence: "monthly",
       _validation_mode: "any",
@@ -77,7 +82,6 @@ export default function WorkspaceClaimsPage({ params }: { params: { id: string }
     setSubmitting(false);
 
     if (res.error) {
-      // Show maximum useful detail to debug PostgREST schema cache issues.
       const e = res.error as any;
       const detail = [
         e.message ? `message: ${e.message}` : null,
@@ -95,7 +99,6 @@ export default function WorkspaceClaimsPage({ params }: { params: { id: string }
     setNewText("");
     setNewVisibility("private");
 
-    // For now: hard reload so you can immediately see if the claim exists via other tools/screens.
     router.refresh();
     window.location.reload();
   }
@@ -159,7 +162,7 @@ export default function WorkspaceClaimsPage({ params }: { params: { id: string }
             <div>
               <div style={{ fontSize: 13, fontWeight: 700, color: muted2 }}>Claims</div>
               <div style={{ marginTop: 4, fontSize: 13, color: muted, maxWidth: 680 }}>
-                Create a claim to begin testing. (Claims list wiring will resume after we verify the view’s columns.)
+                Create a claim to begin testing. (Claims list wiring will resume after claim creation works.)
               </div>
             </div>
 
@@ -171,7 +174,7 @@ export default function WorkspaceClaimsPage({ params }: { params: { id: string }
           <div style={{ padding: "22px" }}>
             <div style={{ fontSize: 14, fontWeight: 800, color: text }}>No claims loaded yet</div>
             <div style={{ marginTop: 6, fontSize: 13, color: muted }}>
-              Once claim creation works, we’ll wire the list from <code>claims_visible_to_member</code>.
+              Workspace ID: <code>{workspaceId}</code>
             </div>
           </div>
         </div>
