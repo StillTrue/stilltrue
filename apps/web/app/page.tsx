@@ -11,7 +11,14 @@ type WorkspaceRow = {
   } | null;
 };
 
-export default async function HomePage() {
+function initials(name: string) {
+  const parts = name.trim().split(/\s+/).filter(Boolean);
+  if (parts.length === 0) return "WS";
+  if (parts.length === 1) return parts[0].slice(0, 2).toUpperCase();
+  return (parts[0][0] + parts[1][0]).toUpperCase();
+}
+
+export default async function WorkspaceSelectorPage() {
   const supabase = await createSupabaseServerClient();
 
   const {
@@ -38,6 +45,7 @@ export default async function HomePage() {
   }
   const workspaces = Array.from(unique.values());
 
+  // Palette (kept aligned with login page)
   const pageBg = "#f3f4f6";
   const cardBg = "#ffffff";
   const border = "#e5e7eb";
@@ -60,6 +68,7 @@ export default async function HomePage() {
     textDecoration: "none",
     cursor: "pointer",
     lineHeight: 1,
+    whiteSpace: "nowrap",
   };
 
   const primaryStyle: React.CSSProperties = {
@@ -67,6 +76,44 @@ export default async function HomePage() {
     border: "none",
     background: buttonBlue,
     color: "#ffffff",
+  };
+
+  const gridStyle: React.CSSProperties = {
+    display: "grid",
+    gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))",
+    gap: 16,
+    padding: 22,
+  };
+
+  const tileStyle: React.CSSProperties = {
+    height: 148,
+    borderRadius: 12,
+    border: `1px solid ${border}`,
+    background: "#ffffff",
+    boxShadow: "0 8px 18px rgba(0,0,0,0.06)",
+    display: "flex",
+    flexDirection: "column",
+    alignItems: "center",
+    justifyContent: "center",
+    textDecoration: "none",
+    color: text,
+    position: "relative",
+    overflow: "hidden",
+  };
+
+  const badgeStyle: React.CSSProperties = {
+    width: 44,
+    height: 44,
+    borderRadius: 12,
+    background: "#eef2f7",
+    border: `1px solid ${border}`,
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "center",
+    fontWeight: 800,
+    color: muted2,
+    marginBottom: 12,
+    letterSpacing: 0.5,
   };
 
   return (
@@ -77,8 +124,8 @@ export default async function HomePage() {
         padding: "40px 16px",
       }}
     >
-      <div style={{ maxWidth: 980, margin: "0 auto" }}>
-        {/* Top bar */}
+      <div style={{ maxWidth: 1080, margin: "0 auto" }}>
+        {/* Header */}
         <div
           style={{
             display: "flex",
@@ -91,8 +138,8 @@ export default async function HomePage() {
           <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
             <img src="/brand/stilltrue-logo.svg" alt="StillTrue" height={32} />
             <div>
-              <div style={{ fontSize: 18, fontWeight: 700, color: text }}>
-                Home
+              <div style={{ fontSize: 22, fontWeight: 800, color: text }}>
+                Select a workspace
               </div>
               <div style={{ fontSize: 13, color: muted }}>
                 {user?.email ? `Signed in as ${user.email}` : "Signed in"}
@@ -100,20 +147,14 @@ export default async function HomePage() {
             </div>
           </div>
 
-          <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-            <Link href="/claims" style={pillStyle}>
-              View claims
-            </Link>
-
-            <form action="/auth/logout" method="post" style={{ margin: 0 }}>
-              <button type="submit" style={primaryStyle}>
-                Logout
-              </button>
-            </form>
-          </div>
+          <form action="/auth/logout" method="post" style={{ margin: 0 }}>
+            <button type="submit" style={primaryStyle}>
+              Logout
+            </button>
+          </form>
         </div>
 
-        {/* Workspaces */}
+        {/* Main card */}
         <div
           style={{
             background: cardBg,
@@ -123,17 +164,29 @@ export default async function HomePage() {
             border: `1px solid ${border}`,
           }}
         >
+          {/* Subheader */}
           <div
             style={{
-              padding: "18px 22px",
+              padding: "16px 22px",
               borderBottom: `1px solid ${border}`,
+              display: "flex",
+              alignItems: "baseline",
+              justifyContent: "space-between",
+              gap: 12,
             }}
           >
-            <div style={{ fontSize: 13, fontWeight: 700, color: muted2 }}>
-              Workspaces
+            <div>
+              <div style={{ fontSize: 13, fontWeight: 700, color: muted2 }}>
+                Workspaces
+              </div>
+              <div style={{ marginTop: 4, fontSize: 13, color: muted }}>
+                Choose where you want to work.
+              </div>
             </div>
-            <div style={{ marginTop: 6, fontSize: 13, color: muted }}>
-              Choose a context. Claims will be scoped under a workspace later.
+
+            {/* Placeholder: search later */}
+            <div style={{ fontSize: 12, color: muted }}>
+              {workspaces.length > 0 ? `${workspaces.length} available` : ""}
             </div>
           </div>
 
@@ -146,65 +199,83 @@ export default async function HomePage() {
                 {error.message}
               </div>
             </div>
-          ) : workspaces.length === 0 ? (
-            <div style={{ padding: "22px" }}>
-              <div style={{ fontSize: 14, fontWeight: 700, color: text }}>
-                No workspaces yet
-              </div>
-              <div style={{ marginTop: 6, fontSize: 13, color: muted }}>
-                This is a valid state. You’ll be able to create or accept an invite later.
-              </div>
-            </div>
           ) : (
-            <div>
-              {workspaces.map((ws, idx) => (
-                <Link
-                  key={ws.id}
-                  href={`/workspaces/${ws.id}`}
-                  style={{
-                    display: "flex",
-                    alignItems: "center",
-                    justifyContent: "space-between",
-                    gap: 12,
-                    padding: "16px 22px",
-                    borderTop: idx === 0 ? "none" : `1px solid ${border}`,
-                    textDecoration: "none",
-                  }}
-                >
-                  <div style={{ minWidth: 0 }}>
-                    <div
-                      style={{
-                        fontSize: 14,
-                        fontWeight: 700,
-                        color: text,
-                        whiteSpace: "nowrap",
-                        overflow: "hidden",
-                        textOverflow: "ellipsis",
-                      }}
-                    >
-                      {ws.name}
-                    </div>
-                    <div style={{ marginTop: 2, fontSize: 12, color: muted }}>
-                      Workspace{ws.status ? ` • ${ws.status}` : ""}
-                    </div>
-                  </div>
-
-                  <span
+            <div style={gridStyle}>
+              {workspaces.map((ws) => (
+                <Link key={ws.id} href={`/workspaces/${ws.id}`} style={tileStyle}>
+                  <div style={badgeStyle}>{initials(ws.name)}</div>
+                  <div
                     style={{
-                      padding: "10px 12px",
-                      borderRadius: 6,
-                      border: `1px solid ${border}`,
-                      background: "#f9fafb",
-                      color: muted2,
-                      fontWeight: 600,
-                      fontSize: 13,
+                      fontSize: 16,
+                      fontWeight: 800,
+                      color: text,
+                      textAlign: "center",
+                      padding: "0 14px",
+                      lineHeight: 1.2,
+                      maxWidth: "100%",
+                      overflow: "hidden",
+                      textOverflow: "ellipsis",
                       whiteSpace: "nowrap",
                     }}
+                    title={ws.name}
                   >
-                    Open
-                  </span>
+                    {ws.name}
+                  </div>
+                  <div style={{ marginTop: 6, fontSize: 12, color: muted }}>
+                    Select
+                  </div>
                 </Link>
               ))}
+
+              {/* Create workspace placeholder tile */}
+              <div
+                style={{
+                  ...tileStyle,
+                  background: "#f9fafb",
+                  cursor: "not-allowed",
+                  opacity: 0.8,
+                }}
+                aria-disabled="true"
+              >
+                <div
+                  style={{
+                    width: 56,
+                    height: 56,
+                    borderRadius: 16,
+                    border: `1px solid ${border}`,
+                    background: "#ffffff",
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    fontSize: 34,
+                    fontWeight: 300,
+                    color: "#93a3b8",
+                    marginBottom: 12,
+                    lineHeight: 1,
+                  }}
+                >
+                  +
+                </div>
+                <div style={{ fontSize: 15, fontWeight: 800, color: muted2 }}>
+                  Create workspace
+                </div>
+                <div style={{ marginTop: 6, fontSize: 12, color: muted }}>
+                  Coming soon
+                </div>
+              </div>
+
+              {workspaces.length === 0 && (
+                <div
+                  style={{
+                    gridColumn: "1 / -1",
+                    padding: "8px 2px 0",
+                    fontSize: 13,
+                    color: muted,
+                  }}
+                >
+                  No workspaces yet. You’ll be able to create or join a workspace later.
+                </div>
+              )}
             </div>
           )}
         </div>
