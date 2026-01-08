@@ -31,6 +31,17 @@ type ClaimTextVersionRow = {
   created_by_profile_id?: string | null;
 };
 
+type ClaimValidationSummary = {
+  claim_id: string;
+  total_requests: number;
+  open_requests: number;
+  closed_requests: number;
+  total_responses: number;
+  yes_count: number;
+  unsure_count: number;
+  no_count: number;
+};
+
 export default function WorkspaceClaimsPage() {
   const supabase = createSupabaseBrowserClient();
   const params = useParams();
@@ -86,7 +97,11 @@ export default function WorkspaceClaimsPage() {
 
   const [editClaimModalOpen, setEditClaimModalOpen] = useState(false);
 
-  // Default: show active claims (ClaimsList will enforce default behaviour)
+  const [validationSummary, setValidationSummary] =
+    useState<ClaimValidationSummary | null>(null);
+  const [validationSummaryLoading, setValidationSummaryLoading] = useState(false);
+  const [validationSummaryError, setValidationSummaryError] = useState<string | null>(null);
+
   const [filter, setFilter] = useState<FilterKey>("all");
 
   const canEditSelected = useMemo(() => {
@@ -118,11 +133,10 @@ export default function WorkspaceClaimsPage() {
       setMyProfileIds((profileRes.data as unknown as string[]) || []);
     }
 
-    // IMPORTANT: member-safe view; include retired (visibility handled by filters in UI)
     const { data, error } = await supabase
       .from("claims_visible_to_member")
       .select(
-        "claim_id, workspace_id, visibility, owner_profile_id, review_cadence, validation_mode, created_at, retired_at, current_text"
+        "claim_id, workspace_id, visibility, owner_profile_id, created_at, retired_at, current_text"
       )
       .eq("workspace_id", workspaceId)
       .order("created_at", { ascending: false });
@@ -135,8 +149,7 @@ export default function WorkspaceClaimsPage() {
       return;
     }
 
-    const rows = (data || []) as any[];
-    const mapped: ClaimRow[] = rows.map((c) => ({
+    const mapped = (data || []).map((c: any) => ({
       claim_id: String(c.claim_id),
       visibility: c.visibility as ClaimVisibility,
       owner_profile_id: String(c.owner_profile_id),
@@ -154,7 +167,7 @@ export default function WorkspaceClaimsPage() {
     if (!statesRes.error && Array.isArray(statesRes.data)) {
       const next: Record<string, ClaimState> = {};
       for (const row of statesRes.data as any[]) {
-        if (row?.claim_id && row?.state) next[String(row.claim_id)] = row.state as ClaimState;
+        if (row?.claim_id && row?.state) next[String(row.claim_id)] = row.state;
       }
       setClaimStateById(next);
     } else {
@@ -182,9 +195,32 @@ export default function WorkspaceClaimsPage() {
         return;
       }
 
-      setVersions((data || []) as ClaimTextVersionRow[]);
+      setVersions(data || []);
     } finally {
       setVersionsLoading(false);
+    }
+  }
+
+  async function loadValidationSummary(claimId: string) {
+    setValidationSummary(null);
+    setValidationSummaryError(null);
+    setValidationSummaryLoading(true);
+
+    try {
+      const { data, error } = await supabase
+        .from("claim_validation_summary")
+        .select("*")
+        .eq("claim_id", claimId)
+        .maybeSingle();
+
+      if (error) {
+        setValidationSummaryError(error.message);
+        return;
+      }
+
+      setValidationSummary(data || null);
+    } finally {
+      setValidationSummaryLoading(false);
     }
   }
 
@@ -197,7 +233,12 @@ export default function WorkspaceClaimsPage() {
     setSelectedClaim(claim);
     setViewClaimModalOpen(true);
     setEditClaimModalOpen(false);
+
     await loadVersionsForClaim(claim.claim_id);
+
+    if (myProfileIds.includes(claim.owner_profile_id)) {
+      await loadValidationSummary(claim.claim_id);
+    }
   }
 
   function closeViewClaimModal() {
@@ -207,6 +248,9 @@ export default function WorkspaceClaimsPage() {
     setVersionsError(null);
     setVersionsLoading(false);
     setEditClaimModalOpen(false);
+    setValidationSummary(null);
+    setValidationSummaryError(null);
+    setValidationSummaryLoading(false);
   }
 
   async function afterEditSaved() {
@@ -233,7 +277,6 @@ export default function WorkspaceClaimsPage() {
   return (
     <main style={{ minHeight: "100vh", background: pageBg, padding: "40px 16px" }}>
       <div style={{ maxWidth: 1080, margin: "0 auto" }}>
-        {/* Top bar */}
         <div
           style={{
             display: "flex",
@@ -300,6 +343,9 @@ export default function WorkspaceClaimsPage() {
         canEdit={canEditSelected}
         onEdit={() => setEditClaimModalOpen(true)}
         onRetire={retireSelectedClaim}
+        validationSummary={validationSummary}
+        validationSummaryLoading={validationSummaryLoading}
+        validationSummaryError={validationSummaryError}
         borderColor={border}
         textColor={text}
         mutedColor={muted}
