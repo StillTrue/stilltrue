@@ -42,7 +42,6 @@ export default function NewClaimModal(props: {
   const [submitting, setSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
 
-  // When modal opens, clear any old errors (but keep text if user reopens quickly? we reset fully)
   useEffect(() => {
     if (!open) return;
     setSubmitError(null);
@@ -67,7 +66,6 @@ export default function NewClaimModal(props: {
       return;
     }
 
-    // reset
     setNewText("");
     setNewVisibility("private");
     setSubmitError(null);
@@ -107,53 +105,9 @@ export default function NewClaimModal(props: {
           border: `1px solid ${borderColor}`,
         }}
       >
-        <h2 style={{ fontSize: 18, fontWeight: 800, color: textColor, marginBottom: 14 }}>New claim</h2>
+        <div style={{ display: "flex", justifyContent: "space-between", gap: 12, alignItems: "center" }}>
+          <h2 style={{ fontSize: 18, fontWeight: 800, color: textColor, margin: 0 }}>New claim</h2>
 
-        <label style={{ display: "block", fontSize: 13, fontWeight: 600, color: muted2Color, marginBottom: 6 }}>
-          Claim text
-        </label>
-        <textarea
-          value={newText}
-          onChange={(e) => setNewText(e.target.value)}
-          rows={4}
-          style={{
-            width: "100%",
-            padding: "10px 12px",
-            borderRadius: 6,
-            border: `1px solid ${borderColor}`,
-            fontSize: 14,
-            marginBottom: 14,
-            background: "#ffffff",
-            color: textColor,
-            outline: "none",
-          }}
-        />
-
-        <label style={{ display: "block", fontSize: 13, fontWeight: 600, color: muted2Color, marginBottom: 6 }}>
-          Visibility
-        </label>
-        <select
-          value={newVisibility}
-          onChange={(e) => setNewVisibility(e.target.value as ClaimVisibility)}
-          style={{
-            width: "100%",
-            padding: "10px 12px",
-            borderRadius: 6,
-            border: `1px solid ${borderColor}`,
-            fontSize: 14,
-            marginBottom: 16,
-            background: "#ffffff",
-            color: textColor,
-            outline: "none",
-          }}
-        >
-          <option value="private">Private (mine)</option>
-          <option value="workspace">Public (workspace)</option>
-        </select>
-
-        {submitError && <div style={{ marginBottom: 12, fontSize: 13, color: "#b91c1c" }}>{submitError}</div>}
-
-        <div style={{ display: "flex", justifyContent: "flex-end", gap: 10 }}>
           <button
             type="button"
             onClick={() => {
@@ -162,32 +116,101 @@ export default function NewClaimModal(props: {
             }}
             disabled={submitting}
             style={{
-              padding: "8px 12px",
-              borderRadius: 6,
+              padding: "8px 10px",
+              borderRadius: 8,
               border: `1px solid ${borderColor}`,
               background: "#ffffff",
               cursor: "pointer",
+              fontWeight: 800,
+              color: textColor,
             }}
           >
-            Cancel
+            Close
           </button>
+        </div>
 
-          <button
-            type="button"
-            onClick={() => void submitNewClaim()}
-            disabled={submitting || !newText.trim()}
+        <div style={{ marginTop: 14 }}>
+          <label style={{ display: "block", fontSize: 13, fontWeight: 600, color: muted2Color, marginBottom: 6 }}>
+            Claim text
+          </label>
+          <textarea
+            value={newText}
+            onChange={(e) => setNewText(e.target.value)}
+            rows={4}
             style={{
-              padding: "8px 14px",
+              width: "100%",
+              padding: "10px 12px",
               borderRadius: 6,
-              border: "none",
-              background: buttonBlue,
-              color: "#ffffff",
-              fontWeight: 600,
-              cursor: "pointer",
+              border: `1px solid ${borderColor}`,
+              fontSize: 14,
+              marginBottom: 14,
+              background: "#ffffff",
+              color: textColor,
+              outline: "none",
+            }}
+          />
+
+          <label style={{ display: "block", fontSize: 13, fontWeight: 600, color: muted2Color, marginBottom: 6 }}>
+            Visibility
+          </label>
+          <select
+            value={newVisibility}
+            onChange={(e) => setNewVisibility(e.target.value as ClaimVisibility)}
+            style={{
+              width: "100%",
+              padding: "10px 12px",
+              borderRadius: 6,
+              border: `1px solid ${borderColor}`,
+              fontSize: 14,
+              marginBottom: 16,
+              background: "#ffffff",
+              color: textColor,
+              outline: "none",
             }}
           >
-            {submitting ? "Creating…" : "Create"}
-          </button>
+            <option value="private">Private (mine)</option>
+            <option value="workspace">Public (workspace)</option>
+          </select>
+
+          {submitError && <div style={{ marginBottom: 12, fontSize: 13, color: "#b91c1c" }}>{submitError}</div>}
+
+          <div style={{ display: "flex", justifyContent: "flex-end", gap: 10 }}>
+            <button
+              type="button"
+              onClick={() => {
+                onClose();
+                setSubmitError(null);
+              }}
+              disabled={submitting}
+              style={{
+                padding: "8px 12px",
+                borderRadius: 6,
+                border: `1px solid ${borderColor}`,
+                background: "#ffffff",
+                cursor: "pointer",
+                color: textColor,
+              }}
+            >
+              Cancel
+            </button>
+
+            <button
+              type="button"
+              onClick={() => void submitNewClaim()}
+              disabled={submitting || !newText.trim()}
+              style={{
+                padding: "8px 14px",
+                borderRadius: 6,
+                border: "none",
+                background: buttonBlue,
+                color: "#ffffff",
+                fontWeight: 600,
+                cursor: "pointer",
+              }}
+            >
+              {submitting ? "Creating…" : "Create"}
+            </button>
+          </div>
         </div>
       </div>
     </div>
