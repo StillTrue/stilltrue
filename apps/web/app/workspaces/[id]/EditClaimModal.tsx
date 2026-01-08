@@ -3,11 +3,17 @@
 import { useEffect, useMemo, useState } from "react";
 
 type ClaimVisibility = "private" | "workspace";
+type ReviewCadence = "weekly" | "monthly" | "quarterly" | "custom";
+type ValidationMode = "any" | "all";
 
 type ClaimRow = {
   claim_id: string;
   visibility: ClaimVisibility;
   current_text: string | null;
+
+  // now passed through from page.tsx selectedClaim
+  review_cadence?: ReviewCadence;
+  validation_mode?: ValidationMode;
 };
 
 type ClaimTextVersionRow = {
@@ -60,8 +66,21 @@ export default function EditClaimModal(props: {
     return claim.visibility;
   }, [claim]);
 
+  const initialCadence = useMemo<ReviewCadence>(() => {
+    if (!claim?.review_cadence) return "monthly";
+    return claim.review_cadence;
+  }, [claim]);
+
+  const initialMode = useMemo<ValidationMode>(() => {
+    if (!claim?.validation_mode) return "any";
+    return claim.validation_mode;
+  }, [claim]);
+
   const [text, setText] = useState("");
   const [visibility, setVisibility] = useState<ClaimVisibility>("private");
+  const [cadence, setCadence] = useState<ReviewCadence>("monthly");
+  const [mode, setMode] = useState<ValidationMode>("any");
+
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -69,9 +88,11 @@ export default function EditClaimModal(props: {
     if (!open || !claim) return;
     setText(initialText);
     setVisibility(initialVisibility);
+    setCadence(initialCadence);
+    setMode(initialMode);
     setError(null);
     setSaving(false);
-  }, [open, claim, initialText, initialVisibility]);
+  }, [open, claim, initialText, initialVisibility, initialCadence, initialMode]);
 
   // ESC key — consume at capture phase so underlying modals never see it
   useEffect(() => {
@@ -101,16 +122,30 @@ export default function EditClaimModal(props: {
     setSaving(true);
     setError(null);
 
-    const { error: rpcErr } = await supabase.rpc("edit_claim_text_and_visibility", {
+    // 1) Update text + visibility (existing RPC)
+    const { error: rpcErr1 } = await supabase.rpc("edit_claim_text_and_visibility", {
       _claim_id: claim.claim_id,
       _new_text: trimmed,
       _new_visibility: visibility,
     });
 
+    if (rpcErr1) {
+      setSaving(false);
+      setError(rpcErr1.message || "Failed to save changes.");
+      return;
+    }
+
+    // 2) Update cadence + mode (new RPC)
+    const { error: rpcErr2 } = await supabase.rpc("edit_claim_validation_settings", {
+      _claim_id: claim.claim_id,
+      _review_cadence: cadence,
+      _validation_mode: mode,
+    });
+
     setSaving(false);
 
-    if (rpcErr) {
-      setError(rpcErr.message || "Failed to save changes.");
+    if (rpcErr2) {
+      setError(rpcErr2.message || "Failed to save validation settings.");
       return;
     }
 
@@ -138,7 +173,7 @@ export default function EditClaimModal(props: {
     >
       <div
         style={{
-          width: "min(620px, 100%)",
+          width: "min(680px, 100%)",
           background: "#ffffff",
           borderRadius: 12,
           boxShadow: "0 20px 40px rgba(0,0,0,0.2)",
@@ -211,7 +246,55 @@ export default function EditClaimModal(props: {
           </select>
         </div>
 
-        {error && <div style={{ marginTop: 12, fontSize: 13, color: "#b91c1c" }}>{error}</div>}
+        <div style={{ marginTop: 14 }}>
+          <label style={{ display: "block", fontSize: 13, fontWeight: 700, color: muted2Color, marginBottom: 6 }}>
+            Review cadence
+          </label>
+          <select
+            value={cadence}
+            onChange={(e) => setCadence(e.target.value as ReviewCadence)}
+            style={{
+              width: "100%",
+              padding: "10px 12px",
+              borderRadius: 8,
+              border: `1px solid ${borderColor}`,
+              fontSize: 14,
+              background: "#ffffff",
+              color: textColor,
+              outline: "none",
+            }}
+          >
+            <option value="weekly">Weekly</option>
+            <option value="monthly">Monthly</option>
+            <option value="quarterly">Quarterly</option>
+            <option value="custom">Custom</option>
+          </select>
+        </div>
+
+        <div style={{ marginTop: 14 }}>
+          <label style={{ display: "block", fontSize: 13, fontWeight: 700, color: muted2Color, marginBottom: 6 }}>
+            Validation mode
+          </label>
+          <select
+            value={mode}
+            onChange={(e) => setMode(e.target.value as ValidationMode)}
+            style={{
+              width: "100%",
+              padding: "10px 12px",
+              borderRadius: 8,
+              border: `1px solid ${borderColor}`,
+              fontSize: 14,
+              background: "#ffffff",
+              color: textColor,
+              outline: "none",
+            }}
+          >
+            <option value="any">Any validator (one response is enough)</option>
+            <option value="all">All validators (wait for all)</option>
+          </select>
+        </div>
+
+        {error ? <div style={{ marginTop: 12, fontSize: 13, color: "#b91c1c" }}>{error}</div> : null}
 
         <div style={{ display: "flex", justifyContent: "flex-end", gap: 10, marginTop: 16 }}>
           <button
