@@ -73,16 +73,20 @@ export default function EditClaimModal(props: {
     setSaving(false);
   }, [open, claim, initialText, initialVisibility]);
 
-  // ESC key to close
+  // ESC key — consume at capture phase so underlying modals never see it
   useEffect(() => {
     if (!open) return;
 
-    function onKey(e: KeyboardEvent) {
-      if (e.key === "Escape") onClose();
+    function onKeyCapture(e: KeyboardEvent) {
+      if (e.key === "Escape") {
+        e.preventDefault();
+        e.stopImmediatePropagation(); // critical
+        onClose();
+      }
     }
 
-    window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
+    window.addEventListener("keydown", onKeyCapture, { capture: true });
+    return () => window.removeEventListener("keydown", onKeyCapture, { capture: true });
   }, [open, onClose]);
 
   async function save() {
@@ -142,9 +146,8 @@ export default function EditClaimModal(props: {
           border: `1px solid ${borderColor}`,
         }}
       >
-        <div style={{ display: "flex", justifyContent: "space-between", gap: 12, alignItems: "center" }}>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
           <div style={{ fontSize: 16, fontWeight: 900, color: textColor }}>Edit claim</div>
-
           <button
             type="button"
             onClick={onClose}
@@ -154,9 +157,7 @@ export default function EditClaimModal(props: {
               borderRadius: 8,
               border: `1px solid ${borderColor}`,
               background: "#ffffff",
-              cursor: "pointer",
               fontWeight: 800,
-              color: textColor,
             }}
           >
             Close
@@ -164,43 +165,34 @@ export default function EditClaimModal(props: {
         </div>
 
         <div style={{ marginTop: 14 }}>
-          <label style={{ display: "block", fontSize: 13, fontWeight: 700, color: muted2Color, marginBottom: 6 }}>
-            Claim text
-          </label>
+          <label style={{ fontSize: 13, fontWeight: 700, color: muted2Color }}>Claim text</label>
           <textarea
             value={text}
             onChange={(e) => setText(e.target.value)}
             rows={5}
             style={{
               width: "100%",
+              marginTop: 6,
               padding: "10px 12px",
               borderRadius: 8,
               border: `1px solid ${borderColor}`,
               fontSize: 14,
-              background: "#ffffff",
-              color: textColor,
-              outline: "none",
-              resize: "vertical",
             }}
           />
         </div>
 
         <div style={{ marginTop: 14 }}>
-          <label style={{ display: "block", fontSize: 13, fontWeight: 700, color: muted2Color, marginBottom: 6 }}>
-            Visibility
-          </label>
+          <label style={{ fontSize: 13, fontWeight: 700, color: muted2Color }}>Visibility</label>
           <select
             value={visibility}
             onChange={(e) => setVisibility(e.target.value as ClaimVisibility)}
             style={{
               width: "100%",
+              marginTop: 6,
               padding: "10px 12px",
               borderRadius: 8,
               border: `1px solid ${borderColor}`,
               fontSize: 14,
-              background: "#ffffff",
-              color: textColor,
-              outline: "none",
             }}
           >
             <option value="private">Private (mine)</option>
@@ -208,7 +200,7 @@ export default function EditClaimModal(props: {
           </select>
         </div>
 
-        {error ? <div style={{ marginTop: 12, fontSize: 13, color: "#b91c1c" }}>{error}</div> : null}
+        {error && <div style={{ marginTop: 12, fontSize: 13, color: "#b91c1c" }}>{error}</div>}
 
         <div style={{ display: "flex", justifyContent: "flex-end", gap: 10, marginTop: 16 }}>
           <button
@@ -220,9 +212,7 @@ export default function EditClaimModal(props: {
               borderRadius: 8,
               border: `1px solid ${borderColor}`,
               background: "#ffffff",
-              cursor: "pointer",
               fontWeight: 700,
-              color: textColor,
             }}
           >
             Cancel
@@ -238,7 +228,6 @@ export default function EditClaimModal(props: {
               border: "none",
               background: buttonBlue,
               color: "#ffffff",
-              cursor: "pointer",
               fontWeight: 800,
             }}
           >
