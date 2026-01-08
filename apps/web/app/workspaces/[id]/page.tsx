@@ -12,6 +12,9 @@ import EditClaimModal from "./EditClaimModal";
 type ClaimVisibility = "private" | "workspace";
 type ClaimState = "Affirmed" | "Unconfirmed" | "Challenged" | "Retired";
 
+type ReviewCadence = "weekly" | "monthly" | "quarterly" | "custom";
+type ValidationMode = "any" | "all";
+
 type ClaimRow = {
   claim_id: string;
   visibility: ClaimVisibility;
@@ -19,6 +22,8 @@ type ClaimRow = {
   created_at: string;
   retired_at: string | null;
   current_text: string | null;
+  review_cadence: ReviewCadence;
+  validation_mode: ValidationMode;
 };
 
 type FilterKey = "all" | "mine" | "private" | "workspace" | "retired";
@@ -97,8 +102,7 @@ export default function WorkspaceClaimsPage() {
 
   const [editClaimModalOpen, setEditClaimModalOpen] = useState(false);
 
-  const [validationSummary, setValidationSummary] =
-    useState<ClaimValidationSummary | null>(null);
+  const [validationSummary, setValidationSummary] = useState<ClaimValidationSummary | null>(null);
   const [validationSummaryLoading, setValidationSummaryLoading] = useState(false);
   const [validationSummaryError, setValidationSummaryError] = useState<string | null>(null);
 
@@ -136,7 +140,7 @@ export default function WorkspaceClaimsPage() {
     const { data, error } = await supabase
       .from("claims_visible_to_member")
       .select(
-        "claim_id, workspace_id, visibility, owner_profile_id, created_at, retired_at, current_text"
+        "claim_id, workspace_id, visibility, owner_profile_id, review_cadence, validation_mode, created_at, retired_at, current_text"
       )
       .eq("workspace_id", workspaceId)
       .order("created_at", { ascending: false });
@@ -149,13 +153,16 @@ export default function WorkspaceClaimsPage() {
       return;
     }
 
-    const mapped = (data || []).map((c: any) => ({
+    const rows = (data || []) as any[];
+    const mapped: ClaimRow[] = rows.map((c) => ({
       claim_id: String(c.claim_id),
       visibility: c.visibility as ClaimVisibility,
       owner_profile_id: String(c.owner_profile_id),
       created_at: String(c.created_at),
       retired_at: c.retired_at ? String(c.retired_at) : null,
       current_text: c.current_text ?? null,
+      review_cadence: c.review_cadence as ReviewCadence,
+      validation_mode: c.validation_mode as ValidationMode,
     }));
 
     setClaims(mapped);
@@ -167,7 +174,7 @@ export default function WorkspaceClaimsPage() {
     if (!statesRes.error && Array.isArray(statesRes.data)) {
       const next: Record<string, ClaimState> = {};
       for (const row of statesRes.data as any[]) {
-        if (row?.claim_id && row?.state) next[String(row.claim_id)] = row.state;
+        if (row?.claim_id && row?.state) next[String(row.claim_id)] = row.state as ClaimState;
       }
       setClaimStateById(next);
     } else {
@@ -195,7 +202,7 @@ export default function WorkspaceClaimsPage() {
         return;
       }
 
-      setVersions(data || []);
+      setVersions((data || []) as ClaimTextVersionRow[]);
     } finally {
       setVersionsLoading(false);
     }
@@ -218,7 +225,7 @@ export default function WorkspaceClaimsPage() {
         return;
       }
 
-      setValidationSummary(data || null);
+      setValidationSummary((data as any) || null);
     } finally {
       setValidationSummaryLoading(false);
     }

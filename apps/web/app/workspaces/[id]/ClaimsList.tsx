@@ -5,6 +5,9 @@ import { useMemo } from "react";
 type ClaimVisibility = "private" | "workspace";
 type ClaimState = "Affirmed" | "Unconfirmed" | "Challenged" | "Retired";
 
+type ReviewCadence = "weekly" | "monthly" | "quarterly" | "custom";
+type ValidationMode = "any" | "all";
+
 type ClaimRow = {
   claim_id: string;
   visibility: ClaimVisibility;
@@ -12,6 +15,10 @@ type ClaimRow = {
   created_at: string;
   retired_at: string | null;
   current_text: string | null;
+
+  // present on claims + claims_visible_to_member (even if not used in this list UI yet)
+  review_cadence: ReviewCadence;
+  validation_mode: ValidationMode;
 };
 
 type FilterKey = "all" | "mine" | "private" | "workspace" | "retired";
@@ -205,23 +212,16 @@ export default function ClaimsList(props: {
                   }}
                 >
                   <div style={{ display: "flex", justifyContent: "space-between", gap: 12 }}>
-                    <div style={{ fontSize: 14, fontWeight: 800, color: textColor, lineHeight: 1.35 }}>
-                      {title}
-                    </div>
+                    <div style={{ fontSize: 14, fontWeight: 800, color: textColor, lineHeight: 1.35 }}>{title}</div>
 
                     <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
-                      {/* Owner-only derived state */}
                       {derivedState ? <div style={stateBadgeStyle(derivedState)}>{derivedState}</div> : null}
 
-                      {/* Retired tag for non-owners (or if state isn't shown as Retired) */}
                       {showRetiredTag ? (
                         <div style={{ ...badgeBase, color: "#6b7280", background: "#f3f4f6" }}>Retired</div>
                       ) : null}
 
-                      {/* Visibility */}
-                      <div style={visibilityBadgeStyle(c.visibility)}>
-                        {c.visibility === "workspace" ? "Public" : "Private"}
-                      </div>
+                      <div style={visibilityBadgeStyle(c.visibility)}>{c.visibility === "workspace" ? "Public" : "Private"}</div>
                     </div>
                   </div>
 

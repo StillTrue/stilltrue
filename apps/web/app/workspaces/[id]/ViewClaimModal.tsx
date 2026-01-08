@@ -6,6 +6,10 @@ type ClaimRow = {
   claim_id: string;
   current_text: string | null;
   retired_at?: string | null;
+
+  // optional (present when passed from page.tsx selectedClaim)
+  review_cadence?: "weekly" | "monthly" | "quarterly" | "custom";
+  validation_mode?: "any" | "all";
 };
 
 type ClaimTextVersionRow = {
@@ -18,11 +22,9 @@ type ClaimTextVersionRow = {
 
 type ClaimValidationSummary = {
   claim_id: string;
-
   total_requests: number;
   open_requests: number;
   closed_requests: number;
-
   total_responses: number;
   yes_count: number;
   unsure_count: number;
@@ -40,6 +42,11 @@ function safeNum(v: any): number {
   return Number.isFinite(n) ? n : 0;
 }
 
+function titleCase(s: string) {
+  if (!s) return s;
+  return s.slice(0, 1).toUpperCase() + s.slice(1);
+}
+
 export default function ViewClaimModal(props: {
   open: boolean;
   claim: ClaimRow | null;
@@ -49,6 +56,7 @@ export default function ViewClaimModal(props: {
 
   canEdit: boolean;
   onEdit: () => void;
+
   onRetire: () => Promise<void>;
 
   validationSummaryLoading?: boolean;
@@ -136,6 +144,9 @@ export default function ViewClaimModal(props: {
   const yesCount = safeNum(summary?.yes_count);
   const unsureCount = safeNum(summary?.unsure_count);
   const noCount = safeNum(summary?.no_count);
+
+  const cadenceLabel = claim.review_cadence ? titleCase(claim.review_cadence) : null;
+  const modeLabel = claim.validation_mode ? (claim.validation_mode === "any" ? "Any validator" : "All validators") : null;
 
   return (
     <div
@@ -227,7 +238,7 @@ export default function ViewClaimModal(props: {
         <div style={{ padding: 16, display: "grid", gap: 14 }}>
           {retireError ? <div style={{ fontSize: 13, color: "#b91c1c" }}>{retireError}</div> : null}
 
-          <div style={{ border: `1px solid ${borderColor}`, borderRadius: 12, padding: 14 }}>
+          <div style={{ border: `1px solid ${borderColor}`, borderRadius: 12, padding: 14, background: "#ffffff" }}>
             <div style={{ fontSize: 12, fontWeight: 900, color: muted2Color, marginBottom: 10, textTransform: "uppercase" }}>
               Current wording
             </div>
@@ -243,7 +254,25 @@ export default function ViewClaimModal(props: {
             )}
           </div>
 
-          <div style={{ border: `1px solid ${borderColor}`, borderRadius: 12, padding: 14 }}>
+          {/* Validation settings (owner-only) */}
+          <div style={{ border: `1px solid ${borderColor}`, borderRadius: 12, padding: 14, background: "#ffffff" }}>
+            <div style={{ fontSize: 12, fontWeight: 900, color: muted2Color, marginBottom: 10, textTransform: "uppercase" }}>
+              Validation settings
+            </div>
+
+            {!canEdit ? (
+              <div style={{ fontSize: 13, color: mutedColor }}>Validation settings are visible only to the claim owner.</div>
+            ) : (
+              <div style={{ fontSize: 13, color: mutedColor, lineHeight: 1.6 }}>
+                Cadence: <span style={{ color: textColor, fontWeight: 800 }}>{cadenceLabel || "—"}</span>
+                {" · "}
+                Mode: <span style={{ color: textColor, fontWeight: 800 }}>{modeLabel || "—"}</span>
+              </div>
+            )}
+          </div>
+
+          {/* Validation summary (owner-only signals) */}
+          <div style={{ border: `1px solid ${borderColor}`, borderRadius: 12, padding: 14, background: "#ffffff" }}>
             <div style={{ fontSize: 12, fontWeight: 900, color: muted2Color, marginBottom: 10, textTransform: "uppercase" }}>
               Validation summary
             </div>
@@ -260,8 +289,40 @@ export default function ViewClaimModal(props: {
               </div>
             ) : (
               <div style={{ fontSize: 13, color: mutedColor }}>
-                Requests: {totalRequests} (Open {openRequests}, Closed {closedRequests}) · Responses: {totalResponses} ·
-                Yes {yesCount} / Unsure {unsureCount} / No {noCount}
+                Requests: {totalRequests} (Open {openRequests}, Closed {closedRequests}) · Responses: {totalResponses} · Yes{" "}
+                {yesCount} / Unsure {unsureCount} / No {noCount}
+              </div>
+            )}
+          </div>
+
+          {/* History (restored) */}
+          <div style={{ border: `1px solid ${borderColor}`, borderRadius: 12, padding: 14, background: "#ffffff" }}>
+            <div style={{ fontSize: 12, fontWeight: 900, color: muted2Color, marginBottom: 10, textTransform: "uppercase" }}>
+              History
+            </div>
+
+            {versionsLoading ? (
+              <div style={{ fontSize: 13, color: mutedColor }}>Loading…</div>
+            ) : versionsError ? (
+              <div style={{ fontSize: 13, color: "#b91c1c" }}>{versionsError}</div>
+            ) : versions.length === 0 ? (
+              <div style={{ fontSize: 13, color: mutedColor }}>No versions found.</div>
+            ) : (
+              <div style={{ display: "grid", gap: 10 }}>
+                {versions.map((v) => (
+                  <div
+                    key={v.id}
+                    style={{
+                      border: `1px solid ${borderColor}`,
+                      borderRadius: 10,
+                      padding: 12,
+                      background: "#ffffff",
+                    }}
+                  >
+                    <div style={{ fontSize: 12, color: mutedColor, marginBottom: 6 }}>{formatDateTime(v.created_at)}</div>
+                    <div style={{ fontSize: 14, color: textColor, lineHeight: 1.55, whiteSpace: "pre-wrap" }}>{v.text}</div>
+                  </div>
+                ))}
               </div>
             )}
           </div>
