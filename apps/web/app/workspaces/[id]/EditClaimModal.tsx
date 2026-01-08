@@ -25,13 +25,10 @@ type SupabaseLike = {
 export default function EditClaimModal(props: {
   open: boolean;
   claim: ClaimRow | null;
-  // Pass versions so we can default to latest text if available
   versions: ClaimTextVersionRow[];
 
   supabase: SupabaseLike;
   onClose: () => void;
-
-  // After successful save, caller refreshes (loadAll + reload versions if desired)
   onSaved: () => Promise<void>;
 
   borderColor: string;
@@ -68,7 +65,6 @@ export default function EditClaimModal(props: {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  // Reset fields when modal opens / claim changes
   useEffect(() => {
     if (!open || !claim) return;
     setText(initialText);
@@ -136,6 +132,7 @@ export default function EditClaimModal(props: {
       >
         <div style={{ display: "flex", justifyContent: "space-between", gap: 12, alignItems: "center" }}>
           <div style={{ fontSize: 16, fontWeight: 900, color: textColor }}>Edit claim</div>
+
           <button
             type="button"
             onClick={onClose}
@@ -147,6 +144,7 @@ export default function EditClaimModal(props: {
               background: "#ffffff",
               cursor: "pointer",
               fontWeight: 800,
+              color: textColor,
             }}
           >
             Close
@@ -212,6 +210,7 @@ export default function EditClaimModal(props: {
               background: "#ffffff",
               cursor: "pointer",
               fontWeight: 700,
+              color: textColor,
             }}
           >
             Cancel
