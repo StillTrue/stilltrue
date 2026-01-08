@@ -7,13 +7,13 @@ import { createSupabaseBrowserClient } from "@/lib/supabase/browser";
 
 type ClaimRow = {
   claim_id: string;
-  visibility: "private" | "public";
+  visibility: "private" | "workspace";
   owner_profile_id: string;
   created_at: string;
   text_preview: string;
 };
 
-type FilterKey = "all" | "mine" | "private" | "public";
+type FilterKey = "all" | "mine" | "private" | "workspace";
 
 export default function WorkspaceClaimsPage() {
   const supabase = createSupabaseBrowserClient();
@@ -62,7 +62,8 @@ export default function WorkspaceClaimsPage() {
   // New claim modal
   const [modalOpen, setModalOpen] = useState(false);
   const [newText, setNewText] = useState("");
-  const [newVisibility, setNewVisibility] = useState<"private" | "public">("private");
+  // ✅ DB enum: claim_visibility = 'private' | 'workspace'
+  const [newVisibility, setNewVisibility] = useState<"private" | "workspace">("private");
   const [submitting, setSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
 
@@ -71,12 +72,11 @@ export default function WorkspaceClaimsPage() {
   const filteredClaims = useMemo(() => {
     if (filter === "all") return claims;
     if (filter === "private") return claims.filter((c) => c.visibility === "private");
-    if (filter === "public") return claims.filter((c) => c.visibility === "public");
+    if (filter === "workspace") return claims.filter((c) => c.visibility === "workspace");
     if (filter === "mine") return claims.filter((c) => myProfileIds.includes(c.owner_profile_id));
     return claims;
   }, [claims, filter, myProfileIds]);
 
-  // Guard: missing route param
   if (!workspaceId) {
     return (
       <main style={{ minHeight: "100vh", background: pageBg, padding: "40px 16px" }}>
@@ -91,24 +91,16 @@ export default function WorkspaceClaimsPage() {
     setLoading(true);
     setLoadError(null);
 
-    // Email display (nice-to-have)
     supabase.auth.getUser().then(({ data }) => {
       const u = data?.user;
       setEmail(u?.email ? `Signed in as ${u.email}` : "Signed in");
     });
 
-    // Profile ids (used for "My Claims" filter and future owner-only state)
     const profileRes = await supabase.rpc("my_profile_ids");
-    if (profileRes.error) {
-      setMyProfileIds([]);
-      // Don't hard-fail the whole page for this; still load claims.
-    } else {
-      // my_profile_ids returns SETOF uuid, so data is string[]
+    if (!profileRes.error) {
       setMyProfileIds((profileRes.data as unknown as string[]) || []);
     }
 
-    // Load claims + latest text preview for this workspace.
-    // This is member-safe via RLS on claims/claim_text_versions.
     const { data, error } = await supabase
       .from("claims")
       .select(
@@ -135,11 +127,9 @@ export default function WorkspaceClaimsPage() {
       return;
     }
 
-    // Reduce to one row per claim with latest text version preview
     const rows = (data || []) as any[];
     const mapped: ClaimRow[] = rows.map((c) => {
       const versions = Array.isArray(c.claim_text_versions) ? c.claim_text_versions : [];
-      // versions may not be ordered; take the latest by created_at
       let latest = versions[0];
       for (const v of versions) {
         if (!latest || (v?.created_at && v.created_at > latest.created_at)) latest = v;
@@ -168,7 +158,7 @@ export default function WorkspaceClaimsPage() {
 
     const { error } = await supabase.rpc("create_claim_with_text", {
       _workspace_id: workspaceId,
-      _visibility: newVisibility,
+      _visibility: newVisibility, // ✅ 'private' | 'workspace'
       _review_cadence: "monthly",
       _validation_mode: "any",
       _text: newText.trim(),
@@ -184,14 +174,13 @@ export default function WorkspaceClaimsPage() {
     setModalOpen(false);
     setNewText("");
     setNewVisibility("private");
-
     await loadAll();
   }
 
   const countAll = claims.length;
   const countMine = claims.filter((c) => myProfileIds.includes(c.owner_profile_id)).length;
   const countPriv = claims.filter((c) => c.visibility === "private").length;
-  const countPub = claims.filter((c) => c.visibility === "public").length;
+  const countWs = claims.filter((c) => c.visibility === "workspace").length;
 
   function pill(active: boolean): React.CSSProperties {
     return {
@@ -261,7 +250,7 @@ export default function WorkspaceClaimsPage() {
             <div>
               <div style={{ fontSize: 13, fontWeight: 700, color: muted2 }}>Claims</div>
               <div style={{ marginTop: 4, fontSize: 13, color: muted, maxWidth: 720 }}>
-                Public workspace claims + your private claims. (Claim state will show only for claims you own later.)
+                Workspace-visible claims + your private claims. (Claim state will show only for claims you own later.)
               </div>
 
               <div style={{ marginTop: 12, display: "flex", gap: 10, flexWrap: "wrap" }}>
@@ -274,8 +263,8 @@ export default function WorkspaceClaimsPage() {
                 <button type="button" onClick={() => setFilter("private")} style={pill(filter === "private")}>
                   Private (Mine) ({countPriv})
                 </button>
-                <button type="button" onClick={() => setFilter("public")} style={pill(filter === "public")}>
-                  Public (Workspace) ({countPub})
+                <button type="button" onClick={() => setFilter("workspace")} style={pill(filter === "workspace")}>
+                  Public (Workspace) ({countWs})
                 </button>
               </div>
             </div>
@@ -316,8 +305,8 @@ export default function WorkspaceClaimsPage() {
                         style={{
                           fontSize: 12,
                           fontWeight: 800,
-                          color: c.visibility === "public" ? "#0f766e" : "#334155",
-                          background: c.visibility === "public" ? "#ecfeff" : "#f1f5f9",
+                          color: c.visibility === "workspace" ? "#0f766e" : "#334155",
+                          background: c.visibility === "workspace" ? "#ecfeff" : "#f1f5f9",
                           border: `1px solid ${border}`,
                           padding: "6px 10px",
                           borderRadius: 999,
@@ -325,7 +314,7 @@ export default function WorkspaceClaimsPage() {
                           whiteSpace: "nowrap",
                         }}
                       >
-                        {c.visibility === "public" ? "Public" : "Private"}
+                        {c.visibility === "workspace" ? "Public" : "Private"}
                       </div>
                     </div>
 
@@ -390,7 +379,7 @@ export default function WorkspaceClaimsPage() {
             </label>
             <select
               value={newVisibility}
-              onChange={(e) => setNewVisibility(e.target.value as "private" | "public")}
+              onChange={(e) => setNewVisibility(e.target.value as "private" | "workspace")}
               style={{
                 width: "100%",
                 padding: "10px 12px",
@@ -404,7 +393,8 @@ export default function WorkspaceClaimsPage() {
               }}
             >
               <option value="private">Private (mine)</option>
-              <option value="public">Public (workspace)</option>
+              {/* ✅ Keep label “Public (workspace)” but send enum value 'workspace' */}
+              <option value="workspace">Public (workspace)</option>
             </select>
 
             {submitError && <div style={{ marginBottom: 12, fontSize: 13, color: "#b91c1c" }}>{submitError}</div>}
