@@ -5,9 +5,12 @@ import { useEffect, useMemo, useState } from "react";
 import { useParams } from "next/navigation";
 import { createSupabaseBrowserClient } from "@/lib/supabase/browser";
 
+type ClaimVisibility = "private" | "workspace";
+type ClaimState = "Affirmed" | "Unconfirmed" | "Challenged" | "Retired";
+
 type ClaimRow = {
   claim_id: string;
-  visibility: "private" | "workspace";
+  visibility: ClaimVisibility;
   owner_profile_id: string;
   created_at: string;
   text_preview: string;
@@ -53,17 +56,27 @@ export default function WorkspaceClaimsPage() {
     borderRadius: 8,
   };
 
+  const badgeBase: React.CSSProperties = {
+    fontSize: 12,
+    fontWeight: 800,
+    border: `1px solid ${border}`,
+    padding: "6px 10px",
+    borderRadius: 999,
+    height: "fit-content",
+    whiteSpace: "nowrap",
+  };
+
   const [email, setEmail] = useState("Signed in");
   const [myProfileIds, setMyProfileIds] = useState<string[]>([]);
   const [claims, setClaims] = useState<ClaimRow[]>([]);
+  const [claimStateById, setClaimStateById] = useState<Record<string, ClaimState>>({});
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
 
   // New claim modal
   const [modalOpen, setModalOpen] = useState(false);
   const [newText, setNewText] = useState("");
-  // ✅ DB enum: claim_visibility = 'private' | 'workspace'
-  const [newVisibility, setNewVisibility] = useState<"private" | "workspace">("private");
+  const [newVisibility, setNewVisibility] = useState<ClaimVisibility>("private");
   const [submitting, setSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
 
@@ -91,16 +104,19 @@ export default function WorkspaceClaimsPage() {
     setLoading(true);
     setLoadError(null);
 
+    // Signed-in label
     supabase.auth.getUser().then(({ data }) => {
       const u = data?.user;
       setEmail(u?.email ? `Signed in as ${u.email}` : "Signed in");
     });
 
+    // My profile ids (membership identities)
     const profileRes = await supabase.rpc("my_profile_ids");
     if (!profileRes.error) {
       setMyProfileIds((profileRes.data as unknown as string[]) || []);
     }
 
+    // Claims list (workspace scope)
     const { data, error } = await supabase
       .from("claims")
       .select(
@@ -122,6 +138,7 @@ export default function WorkspaceClaimsPage() {
 
     if (error) {
       setClaims([]);
+      setClaimStateById({});
       setLoadError(error.message);
       setLoading(false);
       return;
@@ -136,14 +153,33 @@ export default function WorkspaceClaimsPage() {
       }
       return {
         claim_id: c.id,
-        visibility: c.visibility,
-        owner_profile_id: c.owner_profile_id,
-        created_at: c.created_at,
+        visibility: c.visibility as ClaimVisibility,
+        owner_profile_id: c.owner_profile_id as string,
+        created_at: c.created_at as string,
         text_preview: (latest?.text || "").toString(),
       };
     });
 
     setClaims(mapped);
+
+    // Owner-only derived claim state (RPC returns only my owned claims)
+    const statesRes = await supabase.rpc("get_my_claim_states_for_workspace", {
+      _workspace_id: workspaceId,
+    });
+
+    if (!statesRes.error && Array.isArray(statesRes.data)) {
+      const next: Record<string, ClaimState> = {};
+      for (const row of statesRes.data as any[]) {
+        if (row?.claim_id && row?.state) {
+          next[String(row.claim_id)] = row.state as ClaimState;
+        }
+      }
+      setClaimStateById(next);
+    } else {
+      // If this fails, we just hide state (never block the page)
+      setClaimStateById({});
+    }
+
     setLoading(false);
   }
 
@@ -158,7 +194,7 @@ export default function WorkspaceClaimsPage() {
 
     const { error } = await supabase.rpc("create_claim_with_text", {
       _workspace_id: workspaceId,
-      _visibility: newVisibility, // ✅ 'private' | 'workspace'
+      _visibility: newVisibility,
       _review_cadence: "monthly",
       _validation_mode: "any",
       _text: newText.trim(),
@@ -189,6 +225,21 @@ export default function WorkspaceClaimsPage() {
       borderColor: active ? "#cbd5e1" : border,
       color: text,
     };
+  }
+
+  function visibilityBadgeStyle(vis: ClaimVisibility): React.CSSProperties {
+    if (vis === "workspace") {
+      return { ...badgeBase, color: "#0f766e", background: "#ecfeff" };
+    }
+    return { ...badgeBase, color: "#334155", background: "#f1f5f9" };
+  }
+
+  function stateBadgeStyle(state: ClaimState): React.CSSProperties {
+    // Keep it subtle + consistent with the rest of the UI
+    if (state === "Affirmed") return { ...badgeBase, color: "#166534", background: "#ecfdf5" };
+    if (state === "Unconfirmed") return { ...badgeBase, color: "#0f172a", background: "#f1f5f9" };
+    if (state === "Challenged") return { ...badgeBase, color: "#991b1b", background: "#fef2f2" };
+    return { ...badgeBase, color: "#334155", background: "#f8fafc" }; // Retired
   }
 
   return (
@@ -250,7 +301,7 @@ export default function WorkspaceClaimsPage() {
             <div>
               <div style={{ fontSize: 13, fontWeight: 700, color: muted2 }}>Claims</div>
               <div style={{ marginTop: 4, fontSize: 13, color: muted, maxWidth: 720 }}>
-                Workspace-visible claims + your private claims. (Claim state will show only for claims you own later.)
+                Public workspace claims + your private claims. Claim state is shown only for claims you own.
               </div>
 
               <div style={{ marginTop: 12, display: "flex", gap: 10, flexWrap: "wrap" }}>
@@ -286,43 +337,40 @@ export default function WorkspaceClaimsPage() {
               <div style={{ fontSize: 13, color: muted }}>No claims yet for this workspace.</div>
             ) : (
               <div style={{ display: "grid", gap: 10 }}>
-                {filteredClaims.map((c) => (
-                  <div
-                    key={c.claim_id}
-                    style={{
-                      padding: 14,
-                      border: `1px solid ${border}`,
-                      borderRadius: 10,
-                      background: "#ffffff",
-                    }}
-                  >
-                    <div style={{ display: "flex", justifyContent: "space-between", gap: 12 }}>
-                      <div style={{ fontSize: 14, fontWeight: 800, color: text, lineHeight: 1.35 }}>
-                        {c.text_preview}
+                {filteredClaims.map((c) => {
+                  const derivedState = claimStateById[c.claim_id]; // only exists for claims you own
+                  return (
+                    <div
+                      key={c.claim_id}
+                      style={{
+                        padding: 14,
+                        border: `1px solid ${border}`,
+                        borderRadius: 10,
+                        background: "#ffffff",
+                      }}
+                    >
+                      <div style={{ display: "flex", justifyContent: "space-between", gap: 12 }}>
+                        <div style={{ fontSize: 14, fontWeight: 800, color: text, lineHeight: 1.35 }}>
+                          {c.text_preview}
+                        </div>
+
+                        <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                          {/* Owner-only derived state */}
+                          {derivedState ? <div style={stateBadgeStyle(derivedState)}>{derivedState}</div> : null}
+
+                          {/* Visibility */}
+                          <div style={visibilityBadgeStyle(c.visibility)}>
+                            {c.visibility === "workspace" ? "Public" : "Private"}
+                          </div>
+                        </div>
                       </div>
 
-                      <div
-                        style={{
-                          fontSize: 12,
-                          fontWeight: 800,
-                          color: c.visibility === "workspace" ? "#0f766e" : "#334155",
-                          background: c.visibility === "workspace" ? "#ecfeff" : "#f1f5f9",
-                          border: `1px solid ${border}`,
-                          padding: "6px 10px",
-                          borderRadius: 999,
-                          height: "fit-content",
-                          whiteSpace: "nowrap",
-                        }}
-                      >
-                        {c.visibility === "workspace" ? "Public" : "Private"}
+                      <div style={{ marginTop: 8, fontSize: 12, color: muted }}>
+                        Created {new Date(c.created_at).toLocaleString()}
                       </div>
                     </div>
-
-                    <div style={{ marginTop: 8, fontSize: 12, color: muted }}>
-                      Created {new Date(c.created_at).toLocaleString()}
-                    </div>
-                  </div>
-                ))}
+                  );
+                })}
               </div>
             )}
           </div>
@@ -379,7 +427,7 @@ export default function WorkspaceClaimsPage() {
             </label>
             <select
               value={newVisibility}
-              onChange={(e) => setNewVisibility(e.target.value as "private" | "workspace")}
+              onChange={(e) => setNewVisibility(e.target.value as ClaimVisibility)}
               style={{
                 width: "100%",
                 padding: "10px 12px",
@@ -393,7 +441,6 @@ export default function WorkspaceClaimsPage() {
               }}
             >
               <option value="private">Private (mine)</option>
-              {/* ✅ Keep label “Public (workspace)” but send enum value 'workspace' */}
               <option value="workspace">Public (workspace)</option>
             </select>
 
