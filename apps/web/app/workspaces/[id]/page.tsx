@@ -1,12 +1,13 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useParams } from "next/navigation";
 import { createSupabaseBrowserClient } from "@/lib/supabase/browser";
 import ViewClaimModal from "./ViewClaimModal";
 import ClaimsList from "./ClaimsList";
 import NewClaimModal from "./NewClaimModal";
+import EditClaimModal from "./EditClaimModal";
 
 type ClaimVisibility = "private" | "workspace";
 type ClaimState = "Affirmed" | "Unconfirmed" | "Challenged" | "Retired";
@@ -85,7 +86,15 @@ export default function WorkspaceClaimsPage() {
   const [versionsError, setVersionsError] = useState<string | null>(null);
   const [versions, setVersions] = useState<ClaimTextVersionRow[]>([]);
 
+  // Edit claim modal (owner-only entry)
+  const [editClaimModalOpen, setEditClaimModalOpen] = useState(false);
+
   const [filter, setFilter] = useState<FilterKey>("all");
+
+  const canEditSelected = useMemo(() => {
+    if (!selectedClaim) return false;
+    return myProfileIds.includes(selectedClaim.owner_profile_id);
+  }, [myProfileIds, selectedClaim]);
 
   if (!workspaceId) {
     return (
@@ -166,15 +175,7 @@ export default function WorkspaceClaimsPage() {
     setLoading(false);
   }
 
-  useEffect(() => {
-    void loadAll();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [workspaceId]);
-
-  async function openViewClaimModal(claim: ClaimRow) {
-    setSelectedClaim(claim);
-    setViewClaimModalOpen(true);
-
+  async function loadVersionsForClaim(claimId: string) {
     setVersions([]);
     setVersionsError(null);
     setVersionsLoading(true);
@@ -183,7 +184,7 @@ export default function WorkspaceClaimsPage() {
       const { data, error } = await supabase
         .from("claim_text_versions")
         .select("id, claim_id, text, created_at, created_by_profile_id")
-        .eq("claim_id", claim.claim_id)
+        .eq("claim_id", claimId)
         .order("created_at", { ascending: false });
 
       if (error) {
@@ -198,12 +199,33 @@ export default function WorkspaceClaimsPage() {
     }
   }
 
+  useEffect(() => {
+    void loadAll();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [workspaceId]);
+
+  async function openViewClaimModal(claim: ClaimRow) {
+    setSelectedClaim(claim);
+    setViewClaimModalOpen(true);
+    setEditClaimModalOpen(false);
+    await loadVersionsForClaim(claim.claim_id);
+  }
+
   function closeViewClaimModal() {
     setViewClaimModalOpen(false);
     setSelectedClaim(null);
     setVersions([]);
     setVersionsError(null);
     setVersionsLoading(false);
+    setEditClaimModalOpen(false);
+  }
+
+  async function afterEditSaved() {
+    // Refresh list (visibility + current_text in view) and re-load versions for the open claim
+    await loadAll();
+    if (selectedClaim?.claim_id) {
+      await loadVersionsForClaim(selectedClaim.claim_id);
+    }
   }
 
   return (
@@ -267,12 +289,27 @@ export default function WorkspaceClaimsPage() {
         versionsLoading={versionsLoading}
         versionsError={versionsError}
         versions={versions}
+        canEdit={canEditSelected}
+        onEdit={() => setEditClaimModalOpen(true)}
         borderColor={border}
         textColor={text}
         mutedColor={muted}
         muted2Color={muted2}
         pillBaseStyle={pillBase}
         onClose={closeViewClaimModal}
+      />
+
+      <EditClaimModal
+        open={editClaimModalOpen}
+        claim={selectedClaim}
+        versions={versions}
+        supabase={supabase as any}
+        onClose={() => setEditClaimModalOpen(false)}
+        onSaved={afterEditSaved}
+        borderColor={border}
+        textColor={text}
+        muted2Color={muted2}
+        buttonBlue={buttonBlue}
       />
 
       <NewClaimModal

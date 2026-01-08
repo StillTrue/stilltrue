@@ -27,6 +27,11 @@ export default function ViewClaimModal(props: {
   versionsLoading: boolean;
   versionsError: string | null;
   versions: ClaimTextVersionRow[];
+
+  // ownership: page decides (based on myProfileIds + claim.owner_profile_id)
+  canEdit: boolean;
+  onEdit: () => void;
+
   borderColor: string;
   textColor: string;
   mutedColor: string;
@@ -40,6 +45,8 @@ export default function ViewClaimModal(props: {
     versionsLoading,
     versionsError,
     versions,
+    canEdit,
+    onEdit,
     borderColor,
     textColor,
     mutedColor,
@@ -93,18 +100,36 @@ export default function ViewClaimModal(props: {
           }}
         >
           <div style={{ fontSize: 14, fontWeight: 900, color: textColor }}>View claim</div>
-          <button
-            type="button"
-            onClick={onClose}
-            style={{
-              ...pillBaseStyle,
-              borderRadius: 8,
-              padding: "8px 10px",
-              fontWeight: 800,
-            }}
-          >
-            Close
-          </button>
+
+          <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+            {canEdit ? (
+              <button
+                type="button"
+                onClick={onEdit}
+                style={{
+                  ...pillBaseStyle,
+                  borderRadius: 8,
+                  padding: "8px 10px",
+                  fontWeight: 800,
+                }}
+              >
+                Edit
+              </button>
+            ) : null}
+
+            <button
+              type="button"
+              onClick={onClose}
+              style={{
+                ...pillBaseStyle,
+                borderRadius: 8,
+                padding: "8px 10px",
+                fontWeight: 800,
+              }}
+            >
+              Close
+            </button>
+          </div>
         </div>
 
         <div style={{ padding: 16, display: "grid", gap: 14 }}>
