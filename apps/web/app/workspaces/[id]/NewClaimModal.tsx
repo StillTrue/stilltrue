@@ -36,10 +36,28 @@ export default function NewClaimModal(props: {
   const [submitting, setSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
 
+  // Clear any old error when opening
   useEffect(() => {
     if (!open) return;
     setSubmitError(null);
   }, [open]);
+
+  // ESC key to close (capture so it behaves consistently)
+  useEffect(() => {
+    if (!open) return;
+
+    function onKeyCapture(e: KeyboardEvent) {
+      if (e.key === "Escape") {
+        e.preventDefault();
+        e.stopImmediatePropagation();
+        onClose();
+        setSubmitError(null);
+      }
+    }
+
+    window.addEventListener("keydown", onKeyCapture, { capture: true });
+    return () => window.removeEventListener("keydown", onKeyCapture, { capture: true });
+  }, [open, onClose]);
 
   async function submitNewClaim() {
     setSubmitting(true);
@@ -192,7 +210,7 @@ export default function NewClaimModal(props: {
           <option value="all">All validators (wait for all)</option>
         </select>
 
-        {submitError && <div style={{ marginBottom: 12, fontSize: 13, color: "#b91c1c" }}>{submitError}</div>}
+        {submitError ? <div style={{ marginBottom: 12, fontSize: 13, color: "#b91c1c" }}>{submitError}</div> : null}
 
         <div style={{ display: "flex", justifyContent: "flex-end", gap: 10 }}>
           <button
