@@ -13,7 +13,8 @@ type ClaimRow = {
   visibility: ClaimVisibility;
   owner_profile_id: string;
   created_at: string;
-  text_preview: string;
+  retired_at: string | null;
+  current_text: string | null;
 };
 
 type FilterKey = "all" | "mine" | "private" | "workspace";
@@ -110,28 +111,20 @@ export default function WorkspaceClaimsPage() {
       setEmail(u?.email ? `Signed in as ${u.email}` : "Signed in");
     });
 
-    // My profile ids (membership identities)
+    // My profile ids
     const profileRes = await supabase.rpc("my_profile_ids");
     if (!profileRes.error) {
       setMyProfileIds((profileRes.data as unknown as string[]) || []);
     }
 
-    // Claims list (workspace scope)
+    /**
+     * IMPORTANT:
+     * Use the member-safe view (claims_visible_to_member),
+     * NOT the raw claims table.
+     */
     const { data, error } = await supabase
-      .from("claims")
-      .select(
-        `
-        id,
-        visibility,
-        owner_profile_id,
-        created_at,
-        retired_at,
-        claim_text_versions!inner (
-          text,
-          created_at
-        )
-      `
-      )
+      .from("claims_visible_to_member")
+      .select("claim_id, workspace_id, visibility, owner_profile_id, review_cadence, validation_mode, created_at, retired_at, current_text")
       .eq("workspace_id", workspaceId)
       .is("retired_at", null)
       .order("created_at", { ascending: false });
@@ -145,20 +138,14 @@ export default function WorkspaceClaimsPage() {
     }
 
     const rows = (data || []) as any[];
-    const mapped: ClaimRow[] = rows.map((c) => {
-      const versions = Array.isArray(c.claim_text_versions) ? c.claim_text_versions : [];
-      let latest = versions[0];
-      for (const v of versions) {
-        if (!latest || (v?.created_at && v.created_at > latest.created_at)) latest = v;
-      }
-      return {
-        claim_id: c.id,
-        visibility: c.visibility as ClaimVisibility,
-        owner_profile_id: c.owner_profile_id as string,
-        created_at: c.created_at as string,
-        text_preview: (latest?.text || "").toString(),
-      };
-    });
+    const mapped: ClaimRow[] = rows.map((c) => ({
+      claim_id: String(c.claim_id),
+      visibility: c.visibility as ClaimVisibility,
+      owner_profile_id: String(c.owner_profile_id),
+      created_at: String(c.created_at),
+      retired_at: c.retired_at ? String(c.retired_at) : null,
+      current_text: c.current_text ?? null,
+    }));
 
     setClaims(mapped);
 
@@ -170,13 +157,11 @@ export default function WorkspaceClaimsPage() {
     if (!statesRes.error && Array.isArray(statesRes.data)) {
       const next: Record<string, ClaimState> = {};
       for (const row of statesRes.data as any[]) {
-        if (row?.claim_id && row?.state) {
-          next[String(row.claim_id)] = row.state as ClaimState;
-        }
+        if (row?.claim_id && row?.state) next[String(row.claim_id)] = row.state as ClaimState;
       }
       setClaimStateById(next);
     } else {
-      // If this fails, we just hide state (never block the page)
+      // Never block rendering if this fails
       setClaimStateById({});
     }
 
@@ -228,14 +213,11 @@ export default function WorkspaceClaimsPage() {
   }
 
   function visibilityBadgeStyle(vis: ClaimVisibility): React.CSSProperties {
-    if (vis === "workspace") {
-      return { ...badgeBase, color: "#0f766e", background: "#ecfeff" };
-    }
+    if (vis === "workspace") return { ...badgeBase, color: "#0f766e", background: "#ecfeff" };
     return { ...badgeBase, color: "#334155", background: "#f1f5f9" };
   }
 
   function stateBadgeStyle(state: ClaimState): React.CSSProperties {
-    // Keep it subtle + consistent with the rest of the UI
     if (state === "Affirmed") return { ...badgeBase, color: "#166534", background: "#ecfdf5" };
     if (state === "Unconfirmed") return { ...badgeBase, color: "#0f172a", background: "#f1f5f9" };
     if (state === "Challenged") return { ...badgeBase, color: "#991b1b", background: "#fef2f2" };
@@ -339,6 +321,7 @@ export default function WorkspaceClaimsPage() {
               <div style={{ display: "grid", gap: 10 }}>
                 {filteredClaims.map((c) => {
                   const derivedState = claimStateById[c.claim_id]; // only exists for claims you own
+                  const title = (c.current_text || "").trim() || "(no text)";
                   return (
                     <div
                       key={c.claim_id}
@@ -351,7 +334,7 @@ export default function WorkspaceClaimsPage() {
                     >
                       <div style={{ display: "flex", justifyContent: "space-between", gap: 12 }}>
                         <div style={{ fontSize: 14, fontWeight: 800, color: text, lineHeight: 1.35 }}>
-                          {c.text_preview}
+                          {title}
                         </div>
 
                         <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
