@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 
 type ClaimRow = {
   claim_id: string;
@@ -28,9 +28,12 @@ export default function ViewClaimModal(props: {
   versionsError: string | null;
   versions: ClaimTextVersionRow[];
 
-  // ownership: page decides (based on myProfileIds + claim.owner_profile_id)
+  // ownership: page decides
   canEdit: boolean;
   onEdit: () => void;
+
+  // retire: page provides handler (RPC + refresh)
+  onRetire: () => Promise<void>;
 
   borderColor: string;
   textColor: string;
@@ -47,6 +50,7 @@ export default function ViewClaimModal(props: {
     versions,
     canEdit,
     onEdit,
+    onRetire,
     borderColor,
     textColor,
     mutedColor,
@@ -55,11 +59,32 @@ export default function ViewClaimModal(props: {
     onClose,
   } = props;
 
+  const [retiring, setRetiring] = useState(false);
+  const [retireError, setRetireError] = useState<string | null>(null);
+
   const selectedCurrentText = useMemo(() => {
     if (!claim) return "";
     if (versions && versions.length > 0) return versions[0]?.text ?? "";
     return claim.current_text ?? "";
   }, [claim, versions]);
+
+  async function doRetire() {
+    if (retiring) return;
+    setRetireError(null);
+
+    const ok = window.confirm("Retire this claim? It will remain visible, but marked retired.");
+    if (!ok) return;
+
+    setRetiring(true);
+    try {
+      await onRetire();
+      onClose();
+    } catch (e: any) {
+      setRetireError(e?.message ? String(e.message) : "Failed to retire claim.");
+    } finally {
+      setRetiring(false);
+    }
+  }
 
   if (!open || !claim) return null;
 
@@ -103,18 +128,36 @@ export default function ViewClaimModal(props: {
 
           <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
             {canEdit ? (
-              <button
-                type="button"
-                onClick={onEdit}
-                style={{
-                  ...pillBaseStyle,
-                  borderRadius: 8,
-                  padding: "8px 10px",
-                  fontWeight: 800,
-                }}
-              >
-                Edit
-              </button>
+              <>
+                <button
+                  type="button"
+                  onClick={doRetire}
+                  disabled={retiring}
+                  style={{
+                    ...pillBaseStyle,
+                    borderRadius: 8,
+                    padding: "8px 10px",
+                    fontWeight: 900,
+                    borderColor: "#fecaca",
+                    color: "#b91c1c",
+                  }}
+                >
+                  {retiring ? "Retiring…" : "Retire"}
+                </button>
+
+                <button
+                  type="button"
+                  onClick={onEdit}
+                  style={{
+                    ...pillBaseStyle,
+                    borderRadius: 8,
+                    padding: "8px 10px",
+                    fontWeight: 900,
+                  }}
+                >
+                  Edit
+                </button>
+              </>
             ) : null}
 
             <button
@@ -124,7 +167,7 @@ export default function ViewClaimModal(props: {
                 ...pillBaseStyle,
                 borderRadius: 8,
                 padding: "8px 10px",
-                fontWeight: 800,
+                fontWeight: 900,
               }}
             >
               Close
@@ -133,14 +176,9 @@ export default function ViewClaimModal(props: {
         </div>
 
         <div style={{ padding: 16, display: "grid", gap: 14 }}>
-          <div
-            style={{
-              border: `1px solid ${borderColor}`,
-              borderRadius: 12,
-              padding: 14,
-              background: "#ffffff",
-            }}
-          >
+          {retireError ? <div style={{ fontSize: 13, color: "#b91c1c" }}>{retireError}</div> : null}
+
+          <div style={{ border: `1px solid ${borderColor}`, borderRadius: 12, padding: 14, background: "#ffffff" }}>
             <div
               style={{
                 fontSize: 12,
@@ -164,14 +202,7 @@ export default function ViewClaimModal(props: {
             )}
           </div>
 
-          <div
-            style={{
-              border: `1px solid ${borderColor}`,
-              borderRadius: 12,
-              padding: 14,
-              background: "#ffffff",
-            }}
-          >
+          <div style={{ border: `1px solid ${borderColor}`, borderRadius: 12, padding: 14, background: "#ffffff" }}>
             <div
               style={{
                 fontSize: 12,
@@ -214,14 +245,7 @@ export default function ViewClaimModal(props: {
             )}
           </div>
 
-          <div
-            style={{
-              border: `1px solid ${borderColor}`,
-              borderRadius: 12,
-              padding: 14,
-              background: "#ffffff",
-            }}
-          >
+          <div style={{ border: `1px solid ${borderColor}`, borderRadius: 12, padding: 14, background: "#ffffff" }}>
             <div
               style={{
                 fontSize: 12,

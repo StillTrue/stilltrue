@@ -76,17 +76,17 @@ export default function WorkspaceClaimsPage() {
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
 
-  // New claim modal (open/close only; modal owns its own form state)
+  // New claim modal
   const [newClaimModalOpen, setNewClaimModalOpen] = useState(false);
 
-  // View claim modal (page owns selection + loaded versions)
+  // View claim modal
   const [viewClaimModalOpen, setViewClaimModalOpen] = useState(false);
   const [selectedClaim, setSelectedClaim] = useState<ClaimRow | null>(null);
   const [versionsLoading, setVersionsLoading] = useState(false);
   const [versionsError, setVersionsError] = useState<string | null>(null);
   const [versions, setVersions] = useState<ClaimTextVersionRow[]>([]);
 
-  // Edit claim modal (owner-only entry)
+  // Edit claim modal
   const [editClaimModalOpen, setEditClaimModalOpen] = useState(false);
 
   const [filter, setFilter] = useState<FilterKey>("all");
@@ -122,11 +122,7 @@ export default function WorkspaceClaimsPage() {
       setMyProfileIds((profileRes.data as unknown as string[]) || []);
     }
 
-    /**
-     * IMPORTANT:
-     * Use the member-safe view (claims_visible_to_member),
-     * NOT the raw claims table.
-     */
+    // Member-safe view
     const { data, error } = await supabase
       .from("claims_visible_to_member")
       .select(
@@ -168,7 +164,6 @@ export default function WorkspaceClaimsPage() {
       }
       setClaimStateById(next);
     } else {
-      // Never block rendering if this fails
       setClaimStateById({});
     }
 
@@ -221,11 +216,26 @@ export default function WorkspaceClaimsPage() {
   }
 
   async function afterEditSaved() {
-    // Refresh list (visibility + current_text in view) and re-load versions for the open claim
     await loadAll();
     if (selectedClaim?.claim_id) {
       await loadVersionsForClaim(selectedClaim.claim_id);
     }
+  }
+
+  async function retireSelectedClaim() {
+    if (!selectedClaim) return;
+
+    const { error } = await supabase.rpc("retire_claim", {
+      _claim_id: selectedClaim.claim_id,
+    });
+
+    if (error) {
+      // Throw so ViewClaimModal can show it
+      throw new Error(error.message);
+    }
+
+    // refresh list (retired claims currently disappear due to .is(retired_at, null))
+    await loadAll();
   }
 
   return (
@@ -291,6 +301,7 @@ export default function WorkspaceClaimsPage() {
         versions={versions}
         canEdit={canEditSelected}
         onEdit={() => setEditClaimModalOpen(true)}
+        onRetire={retireSelectedClaim}
         borderColor={border}
         textColor={text}
         mutedColor={muted}
