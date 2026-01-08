@@ -86,7 +86,7 @@ export default function WorkspaceClaimsPage() {
 
   const [editClaimModalOpen, setEditClaimModalOpen] = useState(false);
 
-  // Default: show active claims (not retired)
+  // Default: show active claims (ClaimsList will enforce default behaviour)
   const [filter, setFilter] = useState<FilterKey>("all");
 
   const canEditSelected = useMemo(() => {
@@ -118,7 +118,7 @@ export default function WorkspaceClaimsPage() {
       setMyProfileIds((profileRes.data as unknown as string[]) || []);
     }
 
-    // IMPORTANT: member-safe view; DO NOT filter out retired here.
+    // IMPORTANT: member-safe view; include retired (visibility handled by filters in UI)
     const { data, error } = await supabase
       .from("claims_visible_to_member")
       .select(
@@ -225,23 +225,15 @@ export default function WorkspaceClaimsPage() {
 
     if (error) throw new Error(error.message);
 
-    // Refresh list: claim should now appear under Retired filter
     await loadAll();
   }
 
-  // Apply default behaviour here: All = not retired
-  const claimsForList = useMemo(() => {
-    if (filter === "retired") return claims.filter((c) => c.retired_at);
-    // default / active views exclude retired
-    return claims.filter((c) => !c.retired_at);
-  }, [claims, filter]);
-
-  // Keep counts accurate regardless of filter
   const countRetired = claims.filter((c) => !!c.retired_at).length;
 
   return (
     <main style={{ minHeight: "100vh", background: pageBg, padding: "40px 16px" }}>
       <div style={{ maxWidth: 1080, margin: "0 auto" }}>
+        {/* Top bar */}
         <div
           style={{
             display: "flex",
@@ -274,11 +266,11 @@ export default function WorkspaceClaimsPage() {
         </div>
 
         <ClaimsList
-          claims={claimsForList}
+          claims={claims}
           myProfileIds={myProfileIds}
           claimStateById={claimStateById}
-          filter={filter as any}
-          setFilter={(k: any) => setFilter(k as FilterKey)}
+          filter={filter}
+          setFilter={setFilter}
           loading={loading}
           loadError={loadError}
           borderColor={border}
@@ -292,7 +284,6 @@ export default function WorkspaceClaimsPage() {
           onOpenClaim={(c) => void openViewClaimModal(c)}
         />
 
-        {/* Small retired hint below the list so people can find them */}
         {countRetired > 0 ? (
           <div style={{ marginTop: 10, fontSize: 13, color: muted }}>
             {countRetired} retired claim{countRetired === 1 ? "" : "s"} available in filters.

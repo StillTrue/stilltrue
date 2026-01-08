@@ -85,18 +85,34 @@ export default function ClaimsList(props: {
     if (state === "Affirmed") return { ...badgeBase, color: "#166534", background: "#ecfdf5" };
     if (state === "Unconfirmed") return { ...badgeBase, color: "#0f172a", background: "#f1f5f9" };
     if (state === "Challenged") return { ...badgeBase, color: "#991b1b", background: "#fef2f2" };
-    return { ...badgeBase, color: "#334155", background: "#f8fafc" }; // Retired
+    return { ...badgeBase, color: "#334155", background: "#f8fafc" };
   }
 
-  // Counts are derived from the list provided (page already pre-filters for active vs retired when needed)
+  const { activeClaims, retiredClaims } = useMemo(() => {
+    const active = claims.filter((c) => !c.retired_at);
+    const retired = claims.filter((c) => !!c.retired_at);
+    return { activeClaims: active, retiredClaims: retired };
+  }, [claims]);
+
   const counts = useMemo(() => {
-    const all = claims.length;
-    const mine = claims.filter((c) => myProfileIds.includes(c.owner_profile_id)).length;
-    const priv = claims.filter((c) => c.visibility === "private").length;
-    const ws = claims.filter((c) => c.visibility === "workspace").length;
-    const retired = claims.filter((c) => !!c.retired_at).length;
+    const all = activeClaims.length; // "All" means active by default
+    const mine = activeClaims.filter((c) => myProfileIds.includes(c.owner_profile_id)).length;
+    const priv = activeClaims.filter((c) => c.visibility === "private").length;
+    const ws = activeClaims.filter((c) => c.visibility === "workspace").length;
+    const retired = retiredClaims.length;
     return { all, mine, priv, ws, retired };
-  }, [claims, myProfileIds]);
+  }, [activeClaims, retiredClaims, myProfileIds]);
+
+  const filteredClaims = useMemo(() => {
+    if (filter === "retired") return retiredClaims;
+
+    // Default set is active claims
+    if (filter === "all") return activeClaims;
+    if (filter === "mine") return activeClaims.filter((c) => myProfileIds.includes(c.owner_profile_id));
+    if (filter === "private") return activeClaims.filter((c) => c.visibility === "private");
+    if (filter === "workspace") return activeClaims.filter((c) => c.visibility === "workspace");
+    return activeClaims;
+  }, [filter, activeClaims, retiredClaims, myProfileIds]);
 
   return (
     <div
@@ -157,13 +173,13 @@ export default function ClaimsList(props: {
             <div style={{ fontWeight: 800, marginBottom: 6 }}>Couldn’t load claims</div>
             {loadError}
           </div>
-        ) : claims.length === 0 ? (
+        ) : filteredClaims.length === 0 ? (
           <div style={{ fontSize: 13, color: mutedColor }}>
             {filter === "retired" ? "No retired claims." : "No claims yet for this workspace."}
           </div>
         ) : (
           <div style={{ display: "grid", gap: 10 }}>
-            {claims.map((c) => {
+            {filteredClaims.map((c) => {
               const derivedState = claimStateById[c.claim_id]; // only exists for claims you own
               const title = (c.current_text || "").trim() || "(no text)";
               const isRetired = !!c.retired_at;
@@ -195,11 +211,15 @@ export default function ClaimsList(props: {
                       {/* Owner-only derived state */}
                       {derivedState ? <div style={stateBadgeStyle(derivedState)}>{derivedState}</div> : null}
 
-                      {/* Retired tag for clarity (not a derived state exposure; just reflects retired_at) */}
-                      {isRetired ? <div style={{ ...badgeBase, color: "#6b7280", background: "#f3f4f6" }}>Retired</div> : null}
+                      {/* Retired tag (reflects retired_at, not derived state logic) */}
+                      {isRetired ? (
+                        <div style={{ ...badgeBase, color: "#6b7280", background: "#f3f4f6" }}>Retired</div>
+                      ) : null}
 
                       {/* Visibility */}
-                      <div style={visibilityBadgeStyle(c.visibility)}>{c.visibility === "workspace" ? "Public" : "Private"}</div>
+                      <div style={visibilityBadgeStyle(c.visibility)}>
+                        {c.visibility === "workspace" ? "Public" : "Private"}
+                      </div>
                     </div>
                   </div>
 
