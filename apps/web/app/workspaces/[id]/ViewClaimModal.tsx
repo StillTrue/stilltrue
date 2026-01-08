@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 
 type ClaimRow = {
   claim_id: string;
@@ -49,10 +49,8 @@ export default function ViewClaimModal(props: {
 
   canEdit: boolean;
   onEdit: () => void;
-
   onRetire: () => Promise<void>;
 
-  // Optional (wired later from parent): owner-only validation summary
   validationSummaryLoading?: boolean;
   validationSummaryError?: string | null;
   validationSummary?: ClaimValidationSummary | null;
@@ -89,6 +87,18 @@ export default function ViewClaimModal(props: {
 
   const claimIsRetired = !!claim?.retired_at;
 
+  // ESC key to close
+  useEffect(() => {
+    if (!open) return;
+
+    function onKey(e: KeyboardEvent) {
+      if (e.key === "Escape") onClose();
+    }
+
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [open, onClose]);
+
   const selectedCurrentText = useMemo(() => {
     if (!claim) return "";
     if (versions && versions.length > 0) return versions[0]?.text ?? "";
@@ -97,7 +107,7 @@ export default function ViewClaimModal(props: {
 
   async function doRetire() {
     if (retiring) return;
-    if (claimIsRetired) return; // safety
+    if (claimIsRetired) return;
     setRetireError(null);
 
     const ok = window.confirm("Retire this claim?");
@@ -166,7 +176,6 @@ export default function ViewClaimModal(props: {
           <div style={{ fontSize: 14, fontWeight: 900, color: textColor }}>View claim</div>
 
           <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-            {/* Hide action buttons on retired claims */}
             {canEdit && !claimIsRetired ? (
               <>
                 <button
@@ -218,16 +227,8 @@ export default function ViewClaimModal(props: {
         <div style={{ padding: 16, display: "grid", gap: 14 }}>
           {retireError ? <div style={{ fontSize: 13, color: "#b91c1c" }}>{retireError}</div> : null}
 
-          <div style={{ border: `1px solid ${borderColor}`, borderRadius: 12, padding: 14, background: "#ffffff" }}>
-            <div
-              style={{
-                fontSize: 12,
-                fontWeight: 900,
-                color: muted2Color,
-                marginBottom: 10,
-                textTransform: "uppercase",
-              }}
-            >
+          <div style={{ border: `1px solid ${borderColor}`, borderRadius: 12, padding: 14 }}>
+            <div style={{ fontSize: 12, fontWeight: 900, color: muted2Color, marginBottom: 10, textTransform: "uppercase" }}>
               Current wording
             </div>
 
@@ -242,107 +243,25 @@ export default function ViewClaimModal(props: {
             )}
           </div>
 
-          <div style={{ border: `1px solid ${borderColor}`, borderRadius: 12, padding: 14, background: "#ffffff" }}>
-            <div
-              style={{
-                fontSize: 12,
-                fontWeight: 900,
-                color: muted2Color,
-                marginBottom: 10,
-                textTransform: "uppercase",
-              }}
-            >
-              History
-            </div>
-
-            {versionsLoading ? (
-              <div style={{ fontSize: 13, color: mutedColor }}>Loading…</div>
-            ) : versionsError ? (
-              <div style={{ fontSize: 13, color: "#b91c1c" }}>{versionsError}</div>
-            ) : versions.length === 0 ? (
-              <div style={{ fontSize: 13, color: mutedColor }}>No versions found.</div>
-            ) : (
-              <div style={{ display: "grid", gap: 10 }}>
-                {versions.map((v) => (
-                  <div
-                    key={v.id}
-                    style={{
-                      border: `1px solid ${borderColor}`,
-                      borderRadius: 10,
-                      padding: 12,
-                      background: "#ffffff",
-                    }}
-                  >
-                    <div style={{ fontSize: 12, color: mutedColor, marginBottom: 6 }}>
-                      {formatDateTime(v.created_at)}
-                    </div>
-                    <div style={{ fontSize: 14, color: textColor, lineHeight: 1.55, whiteSpace: "pre-wrap" }}>
-                      {v.text}
-                    </div>
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
-
-          <div style={{ border: `1px solid ${borderColor}`, borderRadius: 12, padding: 14, background: "#ffffff" }}>
-            <div
-              style={{
-                fontSize: 12,
-                fontWeight: 900,
-                color: muted2Color,
-                marginBottom: 10,
-                textTransform: "uppercase",
-              }}
-            >
+          <div style={{ border: `1px solid ${borderColor}`, borderRadius: 12, padding: 14 }}>
+            <div style={{ fontSize: 12, fontWeight: 900, color: muted2Color, marginBottom: 10, textTransform: "uppercase" }}>
               Validation summary
             </div>
 
             {!canEdit ? (
-              <div style={{ fontSize: 13, color: mutedColor, lineHeight: 1.6 }}>
-                Validation signals are visible only to the claim owner.
-              </div>
+              <div style={{ fontSize: 13, color: mutedColor }}>Validation signals are visible only to the claim owner.</div>
             ) : validationSummaryLoading ? (
               <div style={{ fontSize: 13, color: mutedColor }}>Loading…</div>
             ) : validationSummaryError ? (
               <div style={{ fontSize: 13, color: "#b91c1c" }}>{validationSummaryError}</div>
             ) : !summary || totalRequests === 0 ? (
-              <div style={{ fontSize: 13, color: mutedColor, lineHeight: 1.6 }}>
+              <div style={{ fontSize: 13, color: mutedColor }}>
                 No validation requests yet. When requests are created, this will show response counts (signals only).
               </div>
             ) : (
-              <div style={{ display: "grid", gap: 10 }}>
-                <div style={{ fontSize: 13, color: mutedColor, lineHeight: 1.6 }}>
-                  These counts are signals from validators, not truth.
-                </div>
-
-                <div
-                  style={{
-                    display: "grid",
-                    gridTemplateColumns: "repeat(2, minmax(0, 1fr))",
-                    gap: 10,
-                  }}
-                >
-                  <div style={{ border: `1px solid ${borderColor}`, borderRadius: 10, padding: 12 }}>
-                    <div style={{ fontSize: 12, color: mutedColor }}>Requests</div>
-                    <div style={{ marginTop: 4, fontSize: 18, fontWeight: 900, color: textColor }}>
-                      {totalRequests}
-                    </div>
-                    <div style={{ marginTop: 6, fontSize: 12, color: mutedColor }}>
-                      Open: {openRequests} · Closed: {closedRequests}
-                    </div>
-                  </div>
-
-                  <div style={{ border: `1px solid ${borderColor}`, borderRadius: 10, padding: 12 }}>
-                    <div style={{ fontSize: 12, color: mutedColor }}>Responses</div>
-                    <div style={{ marginTop: 4, fontSize: 18, fontWeight: 900, color: textColor }}>
-                      {totalResponses}
-                    </div>
-                    <div style={{ marginTop: 6, fontSize: 12, color: mutedColor }}>
-                      Yes: {yesCount} · Unsure: {unsureCount} · No: {noCount}
-                    </div>
-                  </div>
-                </div>
+              <div style={{ fontSize: 13, color: mutedColor }}>
+                Requests: {totalRequests} (Open {openRequests}, Closed {closedRequests}) · Responses: {totalResponses} ·
+                Yes {yesCount} / Unsure {unsureCount} / No {noCount}
               </div>
             )}
           </div>

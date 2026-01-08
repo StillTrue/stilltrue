@@ -73,6 +73,18 @@ export default function EditClaimModal(props: {
     setSaving(false);
   }, [open, claim, initialText, initialVisibility]);
 
+  // ESC key to close
+  useEffect(() => {
+    if (!open) return;
+
+    function onKey(e: KeyboardEvent) {
+      if (e.key === "Escape") onClose();
+    }
+
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [open, onClose]);
+
   async function save() {
     if (!claim) return;
 
@@ -113,7 +125,7 @@ export default function EditClaimModal(props: {
         display: "flex",
         alignItems: "center",
         justifyContent: "center",
-        zIndex: 70, // above ViewClaimModal
+        zIndex: 70,
         padding: 16,
       }}
       onMouseDown={(e) => {

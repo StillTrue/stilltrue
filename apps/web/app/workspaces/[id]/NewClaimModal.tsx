@@ -47,6 +47,21 @@ export default function NewClaimModal(props: {
     setSubmitError(null);
   }, [open]);
 
+  // ESC key to close
+  useEffect(() => {
+    if (!open) return;
+
+    function onKey(e: KeyboardEvent) {
+      if (e.key === "Escape") {
+        onClose();
+        setSubmitError(null);
+      }
+    }
+
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [open, onClose]);
+
   async function submitNewClaim() {
     setSubmitting(true);
     setSubmitError(null);
