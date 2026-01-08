@@ -21,7 +21,7 @@ type ClaimRow = {
   current_text: string | null;
 };
 
-type FilterKey = "all" | "mine" | "private" | "workspace";
+type FilterKey = "all" | "mine" | "private" | "workspace" | "retired";
 
 type ClaimTextVersionRow = {
   id: string;
@@ -76,19 +76,17 @@ export default function WorkspaceClaimsPage() {
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
 
-  // New claim modal
   const [newClaimModalOpen, setNewClaimModalOpen] = useState(false);
 
-  // View claim modal
   const [viewClaimModalOpen, setViewClaimModalOpen] = useState(false);
   const [selectedClaim, setSelectedClaim] = useState<ClaimRow | null>(null);
   const [versionsLoading, setVersionsLoading] = useState(false);
   const [versionsError, setVersionsError] = useState<string | null>(null);
   const [versions, setVersions] = useState<ClaimTextVersionRow[]>([]);
 
-  // Edit claim modal
   const [editClaimModalOpen, setEditClaimModalOpen] = useState(false);
 
+  // Default: show active claims (not retired)
   const [filter, setFilter] = useState<FilterKey>("all");
 
   const canEditSelected = useMemo(() => {
@@ -110,26 +108,23 @@ export default function WorkspaceClaimsPage() {
     setLoading(true);
     setLoadError(null);
 
-    // Signed-in label
     supabase.auth.getUser().then(({ data }) => {
       const u = data?.user;
       setEmail(u?.email ? `Signed in as ${u.email}` : "Signed in");
     });
 
-    // My profile ids
     const profileRes = await supabase.rpc("my_profile_ids");
     if (!profileRes.error) {
       setMyProfileIds((profileRes.data as unknown as string[]) || []);
     }
 
-    // Member-safe view
+    // IMPORTANT: member-safe view; DO NOT filter out retired here.
     const { data, error } = await supabase
       .from("claims_visible_to_member")
       .select(
         "claim_id, workspace_id, visibility, owner_profile_id, review_cadence, validation_mode, created_at, retired_at, current_text"
       )
       .eq("workspace_id", workspaceId)
-      .is("retired_at", null)
       .order("created_at", { ascending: false });
 
     if (error) {
@@ -152,7 +147,6 @@ export default function WorkspaceClaimsPage() {
 
     setClaims(mapped);
 
-    // Owner-only derived claim state (RPC returns only my owned claims)
     const statesRes = await supabase.rpc("get_my_claim_states_for_workspace", {
       _workspace_id: workspaceId,
     });
@@ -229,19 +223,25 @@ export default function WorkspaceClaimsPage() {
       _claim_id: selectedClaim.claim_id,
     });
 
-    if (error) {
-      // Throw so ViewClaimModal can show it
-      throw new Error(error.message);
-    }
+    if (error) throw new Error(error.message);
 
-    // refresh list (retired claims currently disappear due to .is(retired_at, null))
+    // Refresh list: claim should now appear under Retired filter
     await loadAll();
   }
+
+  // Apply default behaviour here: All = not retired
+  const claimsForList = useMemo(() => {
+    if (filter === "retired") return claims.filter((c) => c.retired_at);
+    // default / active views exclude retired
+    return claims.filter((c) => !c.retired_at);
+  }, [claims, filter]);
+
+  // Keep counts accurate regardless of filter
+  const countRetired = claims.filter((c) => !!c.retired_at).length;
 
   return (
     <main style={{ minHeight: "100vh", background: pageBg, padding: "40px 16px" }}>
       <div style={{ maxWidth: 1080, margin: "0 auto" }}>
-        {/* Top bar */}
         <div
           style={{
             display: "flex",
@@ -274,11 +274,11 @@ export default function WorkspaceClaimsPage() {
         </div>
 
         <ClaimsList
-          claims={claims}
+          claims={claimsForList}
           myProfileIds={myProfileIds}
           claimStateById={claimStateById}
-          filter={filter}
-          setFilter={setFilter}
+          filter={filter as any}
+          setFilter={(k: any) => setFilter(k as FilterKey)}
           loading={loading}
           loadError={loadError}
           borderColor={border}
@@ -291,6 +291,13 @@ export default function WorkspaceClaimsPage() {
           onNewClaim={() => setNewClaimModalOpen(true)}
           onOpenClaim={(c) => void openViewClaimModal(c)}
         />
+
+        {/* Small retired hint below the list so people can find them */}
+        {countRetired > 0 ? (
+          <div style={{ marginTop: 10, fontSize: 13, color: muted }}>
+            {countRetired} retired claim{countRetired === 1 ? "" : "s"} available in filters.
+          </div>
+        ) : null}
       </div>
 
       <ViewClaimModal

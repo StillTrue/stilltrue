@@ -1,8 +1,9 @@
 "use client";
 
+import { useMemo } from "react";
+
 type ClaimVisibility = "private" | "workspace";
 type ClaimState = "Affirmed" | "Unconfirmed" | "Challenged" | "Retired";
-type FilterKey = "all" | "mine" | "private" | "workspace";
 
 type ClaimRow = {
   claim_id: string;
@@ -13,12 +14,16 @@ type ClaimRow = {
   current_text: string | null;
 };
 
+type FilterKey = "all" | "mine" | "private" | "workspace" | "retired";
+
 export default function ClaimsList(props: {
   claims: ClaimRow[];
   myProfileIds: string[];
   claimStateById: Record<string, ClaimState>;
+
   filter: FilterKey;
-  setFilter: (v: FilterKey) => void;
+  setFilter: (k: FilterKey) => void;
+
   loading: boolean;
   loadError: string | null;
 
@@ -27,12 +32,11 @@ export default function ClaimsList(props: {
   textColor: string;
   mutedColor: string;
   muted2Color: string;
-
   pillBaseStyle: React.CSSProperties;
   primaryStyle: React.CSSProperties;
 
   onNewClaim: () => void;
-  onOpenClaim: (claim: ClaimRow) => void;
+  onOpenClaim: (c: ClaimRow) => void;
 }) {
   const {
     claims,
@@ -53,28 +57,6 @@ export default function ClaimsList(props: {
     onOpenClaim,
   } = props;
 
-  const countAll = claims.length;
-  const countMine = claims.filter((c) => myProfileIds.includes(c.owner_profile_id)).length;
-  const countPriv = claims.filter((c) => c.visibility === "private").length;
-  const countWs = claims.filter((c) => c.visibility === "workspace").length;
-
-  const filteredClaims = (() => {
-    if (filter === "all") return claims;
-    if (filter === "private") return claims.filter((c) => c.visibility === "private");
-    if (filter === "workspace") return claims.filter((c) => c.visibility === "workspace");
-    if (filter === "mine") return claims.filter((c) => myProfileIds.includes(c.owner_profile_id));
-    return claims;
-  })();
-
-  function pill(active: boolean): React.CSSProperties {
-    return {
-      ...pillBaseStyle,
-      background: active ? "#eef2f7" : "#ffffff",
-      borderColor: active ? "#cbd5e1" : borderColor,
-      color: textColor,
-    };
-  }
-
   const badgeBase: React.CSSProperties = {
     fontSize: 12,
     fontWeight: 800,
@@ -84,6 +66,15 @@ export default function ClaimsList(props: {
     height: "fit-content",
     whiteSpace: "nowrap",
   };
+
+  function pill(active: boolean): React.CSSProperties {
+    return {
+      ...pillBaseStyle,
+      background: active ? "#eef2f7" : "#ffffff",
+      borderColor: active ? "#cbd5e1" : borderColor,
+      color: textColor,
+    };
+  }
 
   function visibilityBadgeStyle(vis: ClaimVisibility): React.CSSProperties {
     if (vis === "workspace") return { ...badgeBase, color: "#0f766e", background: "#ecfeff" };
@@ -96,6 +87,16 @@ export default function ClaimsList(props: {
     if (state === "Challenged") return { ...badgeBase, color: "#991b1b", background: "#fef2f2" };
     return { ...badgeBase, color: "#334155", background: "#f8fafc" }; // Retired
   }
+
+  // Counts are derived from the list provided (page already pre-filters for active vs retired when needed)
+  const counts = useMemo(() => {
+    const all = claims.length;
+    const mine = claims.filter((c) => myProfileIds.includes(c.owner_profile_id)).length;
+    const priv = claims.filter((c) => c.visibility === "private").length;
+    const ws = claims.filter((c) => c.visibility === "workspace").length;
+    const retired = claims.filter((c) => !!c.retired_at).length;
+    return { all, mine, priv, ws, retired };
+  }, [claims, myProfileIds]);
 
   return (
     <div
@@ -126,16 +127,19 @@ export default function ClaimsList(props: {
 
           <div style={{ marginTop: 12, display: "flex", gap: 10, flexWrap: "wrap" }}>
             <button type="button" onClick={() => setFilter("all")} style={pill(filter === "all")}>
-              All ({countAll})
+              All ({counts.all})
             </button>
             <button type="button" onClick={() => setFilter("mine")} style={pill(filter === "mine")}>
-              My Claims ({countMine})
+              My Claims ({counts.mine})
             </button>
             <button type="button" onClick={() => setFilter("private")} style={pill(filter === "private")}>
-              Private (Mine) ({countPriv})
+              Private (Mine) ({counts.priv})
             </button>
             <button type="button" onClick={() => setFilter("workspace")} style={pill(filter === "workspace")}>
-              Public (Workspace) ({countWs})
+              Public (Workspace) ({counts.ws})
+            </button>
+            <button type="button" onClick={() => setFilter("retired")} style={pill(filter === "retired")}>
+              Retired ({counts.retired})
             </button>
           </div>
         </div>
@@ -153,46 +157,57 @@ export default function ClaimsList(props: {
             <div style={{ fontWeight: 800, marginBottom: 6 }}>Couldn’t load claims</div>
             {loadError}
           </div>
-        ) : filteredClaims.length === 0 ? (
-          <div style={{ fontSize: 13, color: mutedColor }}>No claims yet for this workspace.</div>
+        ) : claims.length === 0 ? (
+          <div style={{ fontSize: 13, color: mutedColor }}>
+            {filter === "retired" ? "No retired claims." : "No claims yet for this workspace."}
+          </div>
         ) : (
           <div style={{ display: "grid", gap: 10 }}>
-            {filteredClaims.map((c) => {
+            {claims.map((c) => {
               const derivedState = claimStateById[c.claim_id]; // only exists for claims you own
               const title = (c.current_text || "").trim() || "(no text)";
+              const isRetired = !!c.retired_at;
 
               return (
-                <button
+                <div
                   key={c.claim_id}
-                  type="button"
+                  role="button"
+                  tabIndex={0}
                   onClick={() => onOpenClaim(c)}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter" || e.key === " ") onOpenClaim(c);
+                  }}
                   style={{
-                    textAlign: "left",
                     padding: 14,
                     border: `1px solid ${borderColor}`,
                     borderRadius: 10,
                     background: "#ffffff",
                     cursor: "pointer",
+                    opacity: isRetired ? 0.75 : 1,
                   }}
                 >
                   <div style={{ display: "flex", justifyContent: "space-between", gap: 12 }}>
-                    <div style={{ fontSize: 14, fontWeight: 800, color: textColor, lineHeight: 1.35 }}>{title}</div>
+                    <div style={{ fontSize: 14, fontWeight: 800, color: textColor, lineHeight: 1.35 }}>
+                      {title}
+                    </div>
 
-                    <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                    <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
                       {/* Owner-only derived state */}
                       {derivedState ? <div style={stateBadgeStyle(derivedState)}>{derivedState}</div> : null}
 
+                      {/* Retired tag for clarity (not a derived state exposure; just reflects retired_at) */}
+                      {isRetired ? <div style={{ ...badgeBase, color: "#6b7280", background: "#f3f4f6" }}>Retired</div> : null}
+
                       {/* Visibility */}
-                      <div style={visibilityBadgeStyle(c.visibility)}>
-                        {c.visibility === "workspace" ? "Public" : "Private"}
-                      </div>
+                      <div style={visibilityBadgeStyle(c.visibility)}>{c.visibility === "workspace" ? "Public" : "Private"}</div>
                     </div>
                   </div>
 
                   <div style={{ marginTop: 8, fontSize: 12, color: mutedColor }}>
                     Created {new Date(c.created_at).toLocaleString()}
+                    {c.retired_at ? ` · Retired ${new Date(c.retired_at).toLocaleString()}` : ""}
                   </div>
-                </button>
+                </div>
               );
             })}
           </div>
