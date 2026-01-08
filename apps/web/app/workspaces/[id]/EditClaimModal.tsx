@@ -80,7 +80,7 @@ export default function EditClaimModal(props: {
     function onKeyCapture(e: KeyboardEvent) {
       if (e.key === "Escape") {
         e.preventDefault();
-        e.stopImmediatePropagation(); // critical
+        e.stopImmediatePropagation();
         onClose();
       }
     }
@@ -157,7 +157,9 @@ export default function EditClaimModal(props: {
               borderRadius: 8,
               border: `1px solid ${borderColor}`,
               background: "#ffffff",
+              cursor: "pointer",
               fontWeight: 800,
+              color: textColor,
             }}
           >
             Close
@@ -165,34 +167,43 @@ export default function EditClaimModal(props: {
         </div>
 
         <div style={{ marginTop: 14 }}>
-          <label style={{ fontSize: 13, fontWeight: 700, color: muted2Color }}>Claim text</label>
+          <label style={{ display: "block", fontSize: 13, fontWeight: 700, color: muted2Color, marginBottom: 6 }}>
+            Claim text
+          </label>
           <textarea
             value={text}
             onChange={(e) => setText(e.target.value)}
             rows={5}
             style={{
               width: "100%",
-              marginTop: 6,
               padding: "10px 12px",
               borderRadius: 8,
               border: `1px solid ${borderColor}`,
               fontSize: 14,
+              background: "#ffffff",
+              color: textColor,
+              outline: "none",
+              resize: "vertical",
             }}
           />
         </div>
 
         <div style={{ marginTop: 14 }}>
-          <label style={{ fontSize: 13, fontWeight: 700, color: muted2Color }}>Visibility</label>
+          <label style={{ display: "block", fontSize: 13, fontWeight: 700, color: muted2Color, marginBottom: 6 }}>
+            Visibility
+          </label>
           <select
             value={visibility}
             onChange={(e) => setVisibility(e.target.value as ClaimVisibility)}
             style={{
               width: "100%",
-              marginTop: 6,
               padding: "10px 12px",
               borderRadius: 8,
               border: `1px solid ${borderColor}`,
               fontSize: 14,
+              background: "#ffffff",
+              color: textColor,
+              outline: "none",
             }}
           >
             <option value="private">Private (mine)</option>
@@ -212,7 +223,9 @@ export default function EditClaimModal(props: {
               borderRadius: 8,
               border: `1px solid ${borderColor}`,
               background: "#ffffff",
+              cursor: "pointer",
               fontWeight: 700,
+              color: textColor,
             }}
           >
             Cancel
@@ -228,6 +241,7 @@ export default function EditClaimModal(props: {
               border: "none",
               background: buttonBlue,
               color: "#ffffff",
+              cursor: "pointer",
               fontWeight: 800,
             }}
           >
