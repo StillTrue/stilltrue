@@ -3,6 +3,8 @@
 import { useEffect, useState } from "react";
 
 type ClaimVisibility = "private" | "workspace";
+type ReviewCadence = "weekly" | "monthly" | "quarterly" | "custom";
+type ValidationMode = "any" | "all";
 
 /**
  * We keep this prop type loose to avoid coupling to any specific Supabase client type package.
@@ -19,26 +21,18 @@ export default function NewClaimModal(props: {
   supabase: SupabaseLike;
   workspaceId: string;
 
-  // style tokens (passed from page so we don't duplicate)
   borderColor: string;
   textColor: string;
   muted2Color: string;
   buttonBlue: string;
 }) {
-  const {
-    open,
-    onClose,
-    onCreated,
-    supabase,
-    workspaceId,
-    borderColor,
-    textColor,
-    muted2Color,
-    buttonBlue,
-  } = props;
+  const { open, onClose, onCreated, supabase, workspaceId, borderColor, textColor, muted2Color, buttonBlue } = props;
 
   const [newText, setNewText] = useState("");
   const [newVisibility, setNewVisibility] = useState<ClaimVisibility>("private");
+  const [reviewCadence, setReviewCadence] = useState<ReviewCadence>("monthly");
+  const [validationMode, setValidationMode] = useState<ValidationMode>("any");
+
   const [submitting, setSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
 
@@ -47,21 +41,6 @@ export default function NewClaimModal(props: {
     setSubmitError(null);
   }, [open]);
 
-  // ESC key to close
-  useEffect(() => {
-    if (!open) return;
-
-    function onKey(e: KeyboardEvent) {
-      if (e.key === "Escape") {
-        onClose();
-        setSubmitError(null);
-      }
-    }
-
-    window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
-  }, [open, onClose]);
-
   async function submitNewClaim() {
     setSubmitting(true);
     setSubmitError(null);
@@ -69,8 +48,8 @@ export default function NewClaimModal(props: {
     const { error } = await supabase.rpc("create_claim_with_text", {
       _workspace_id: workspaceId,
       _visibility: newVisibility,
-      _review_cadence: "monthly",
-      _validation_mode: "any",
+      _review_cadence: reviewCadence,
+      _validation_mode: validationMode,
       _text: newText.trim(),
     });
 
@@ -81,8 +60,11 @@ export default function NewClaimModal(props: {
       return;
     }
 
+    // reset
     setNewText("");
     setNewVisibility("private");
+    setReviewCadence("monthly");
+    setValidationMode("any");
     setSubmitError(null);
 
     onClose();
@@ -120,9 +102,99 @@ export default function NewClaimModal(props: {
           border: `1px solid ${borderColor}`,
         }}
       >
-        <div style={{ display: "flex", justifyContent: "space-between", gap: 12, alignItems: "center" }}>
-          <h2 style={{ fontSize: 18, fontWeight: 800, color: textColor, margin: 0 }}>New claim</h2>
+        <h2 style={{ fontSize: 18, fontWeight: 800, color: textColor, marginBottom: 14 }}>New claim</h2>
 
+        <label style={{ display: "block", fontSize: 13, fontWeight: 600, color: muted2Color, marginBottom: 6 }}>
+          Claim text
+        </label>
+        <textarea
+          value={newText}
+          onChange={(e) => setNewText(e.target.value)}
+          rows={4}
+          style={{
+            width: "100%",
+            padding: "10px 12px",
+            borderRadius: 6,
+            border: `1px solid ${borderColor}`,
+            fontSize: 14,
+            marginBottom: 14,
+            background: "#ffffff",
+            color: textColor,
+            outline: "none",
+          }}
+        />
+
+        <label style={{ display: "block", fontSize: 13, fontWeight: 600, color: muted2Color, marginBottom: 6 }}>
+          Visibility
+        </label>
+        <select
+          value={newVisibility}
+          onChange={(e) => setNewVisibility(e.target.value as ClaimVisibility)}
+          style={{
+            width: "100%",
+            padding: "10px 12px",
+            borderRadius: 6,
+            border: `1px solid ${borderColor}`,
+            fontSize: 14,
+            marginBottom: 14,
+            background: "#ffffff",
+            color: textColor,
+            outline: "none",
+          }}
+        >
+          <option value="private">Private (mine)</option>
+          <option value="workspace">Public (workspace)</option>
+        </select>
+
+        <label style={{ display: "block", fontSize: 13, fontWeight: 600, color: muted2Color, marginBottom: 6 }}>
+          Review cadence
+        </label>
+        <select
+          value={reviewCadence}
+          onChange={(e) => setReviewCadence(e.target.value as ReviewCadence)}
+          style={{
+            width: "100%",
+            padding: "10px 12px",
+            borderRadius: 6,
+            border: `1px solid ${borderColor}`,
+            fontSize: 14,
+            marginBottom: 14,
+            background: "#ffffff",
+            color: textColor,
+            outline: "none",
+          }}
+        >
+          <option value="weekly">Weekly</option>
+          <option value="monthly">Monthly</option>
+          <option value="quarterly">Quarterly</option>
+          <option value="custom">Custom</option>
+        </select>
+
+        <label style={{ display: "block", fontSize: 13, fontWeight: 600, color: muted2Color, marginBottom: 6 }}>
+          Validation mode
+        </label>
+        <select
+          value={validationMode}
+          onChange={(e) => setValidationMode(e.target.value as ValidationMode)}
+          style={{
+            width: "100%",
+            padding: "10px 12px",
+            borderRadius: 6,
+            border: `1px solid ${borderColor}`,
+            fontSize: 14,
+            marginBottom: 16,
+            background: "#ffffff",
+            color: textColor,
+            outline: "none",
+          }}
+        >
+          <option value="any">Any validator (one response is enough)</option>
+          <option value="all">All validators (wait for all)</option>
+        </select>
+
+        {submitError && <div style={{ marginBottom: 12, fontSize: 13, color: "#b91c1c" }}>{submitError}</div>}
+
+        <div style={{ display: "flex", justifyContent: "flex-end", gap: 10 }}>
           <button
             type="button"
             onClick={() => {
@@ -131,101 +203,34 @@ export default function NewClaimModal(props: {
             }}
             disabled={submitting}
             style={{
-              padding: "8px 10px",
-              borderRadius: 8,
+              padding: "8px 12px",
+              borderRadius: 6,
               border: `1px solid ${borderColor}`,
               background: "#ffffff",
               cursor: "pointer",
-              fontWeight: 800,
               color: textColor,
+              fontWeight: 700,
             }}
           >
-            Close
+            Cancel
           </button>
-        </div>
 
-        <div style={{ marginTop: 14 }}>
-          <label style={{ display: "block", fontSize: 13, fontWeight: 600, color: muted2Color, marginBottom: 6 }}>
-            Claim text
-          </label>
-          <textarea
-            value={newText}
-            onChange={(e) => setNewText(e.target.value)}
-            rows={4}
+          <button
+            type="button"
+            onClick={() => void submitNewClaim()}
+            disabled={submitting || !newText.trim()}
             style={{
-              width: "100%",
-              padding: "10px 12px",
+              padding: "8px 14px",
               borderRadius: 6,
-              border: `1px solid ${borderColor}`,
-              fontSize: 14,
-              marginBottom: 14,
-              background: "#ffffff",
-              color: textColor,
-              outline: "none",
-            }}
-          />
-
-          <label style={{ display: "block", fontSize: 13, fontWeight: 600, color: muted2Color, marginBottom: 6 }}>
-            Visibility
-          </label>
-          <select
-            value={newVisibility}
-            onChange={(e) => setNewVisibility(e.target.value as ClaimVisibility)}
-            style={{
-              width: "100%",
-              padding: "10px 12px",
-              borderRadius: 6,
-              border: `1px solid ${borderColor}`,
-              fontSize: 14,
-              marginBottom: 16,
-              background: "#ffffff",
-              color: textColor,
-              outline: "none",
+              border: "none",
+              background: buttonBlue,
+              color: "#ffffff",
+              fontWeight: 700,
+              cursor: "pointer",
             }}
           >
-            <option value="private">Private (mine)</option>
-            <option value="workspace">Public (workspace)</option>
-          </select>
-
-          {submitError && <div style={{ marginBottom: 12, fontSize: 13, color: "#b91c1c" }}>{submitError}</div>}
-
-          <div style={{ display: "flex", justifyContent: "flex-end", gap: 10 }}>
-            <button
-              type="button"
-              onClick={() => {
-                onClose();
-                setSubmitError(null);
-              }}
-              disabled={submitting}
-              style={{
-                padding: "8px 12px",
-                borderRadius: 6,
-                border: `1px solid ${borderColor}`,
-                background: "#ffffff",
-                cursor: "pointer",
-                color: textColor,
-              }}
-            >
-              Cancel
-            </button>
-
-            <button
-              type="button"
-              onClick={() => void submitNewClaim()}
-              disabled={submitting || !newText.trim()}
-              style={{
-                padding: "8px 14px",
-                borderRadius: 6,
-                border: "none",
-                background: buttonBlue,
-                color: "#ffffff",
-                fontWeight: 600,
-                cursor: "pointer",
-              }}
-            >
-              {submitting ? "Creating…" : "Create"}
-            </button>
-          </div>
+            {submitting ? "Creating…" : "Create"}
+          </button>
         </div>
       </div>
     </div>
