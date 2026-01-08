@@ -95,7 +95,7 @@ export default function ClaimsList(props: {
   }, [claims]);
 
   const counts = useMemo(() => {
-    const all = activeClaims.length; // "All" means active by default
+    const all = activeClaims.length;
     const mine = activeClaims.filter((c) => myProfileIds.includes(c.owner_profile_id)).length;
     const priv = activeClaims.filter((c) => c.visibility === "private").length;
     const ws = activeClaims.filter((c) => c.visibility === "workspace").length;
@@ -106,7 +106,6 @@ export default function ClaimsList(props: {
   const filteredClaims = useMemo(() => {
     if (filter === "retired") return retiredClaims;
 
-    // Default set is active claims
     if (filter === "all") return activeClaims;
     if (filter === "mine") return activeClaims.filter((c) => myProfileIds.includes(c.owner_profile_id));
     if (filter === "private") return activeClaims.filter((c) => c.visibility === "private");
@@ -184,6 +183,9 @@ export default function ClaimsList(props: {
               const title = (c.current_text || "").trim() || "(no text)";
               const isRetired = !!c.retired_at;
 
+              // If owner sees derived Retired, don't show separate retired tag.
+              const showRetiredTag = isRetired && derivedState !== "Retired";
+
               return (
                 <div
                   key={c.claim_id}
@@ -211,8 +213,8 @@ export default function ClaimsList(props: {
                       {/* Owner-only derived state */}
                       {derivedState ? <div style={stateBadgeStyle(derivedState)}>{derivedState}</div> : null}
 
-                      {/* Retired tag (reflects retired_at, not derived state logic) */}
-                      {isRetired ? (
+                      {/* Retired tag for non-owners (or if state isn't shown as Retired) */}
+                      {showRetiredTag ? (
                         <div style={{ ...badgeBase, color: "#6b7280", background: "#f3f4f6" }}>Retired</div>
                       ) : null}
 

@@ -5,6 +5,7 @@ import { useMemo, useState } from "react";
 type ClaimRow = {
   claim_id: string;
   current_text: string | null;
+  retired_at?: string | null;
 };
 
 type ClaimTextVersionRow = {
@@ -28,11 +29,9 @@ export default function ViewClaimModal(props: {
   versionsError: string | null;
   versions: ClaimTextVersionRow[];
 
-  // ownership: page decides
   canEdit: boolean;
   onEdit: () => void;
 
-  // retire: page provides handler (RPC + refresh)
   onRetire: () => Promise<void>;
 
   borderColor: string;
@@ -62,6 +61,8 @@ export default function ViewClaimModal(props: {
   const [retiring, setRetiring] = useState(false);
   const [retireError, setRetireError] = useState<string | null>(null);
 
+  const claimIsRetired = !!claim?.retired_at;
+
   const selectedCurrentText = useMemo(() => {
     if (!claim) return "";
     if (versions && versions.length > 0) return versions[0]?.text ?? "";
@@ -70,9 +71,10 @@ export default function ViewClaimModal(props: {
 
   async function doRetire() {
     if (retiring) return;
+    if (claimIsRetired) return; // safety
     setRetireError(null);
 
-    const ok = window.confirm("Retire this claim? It will remain visible, but marked retired.");
+    const ok = window.confirm("Retire this claim?");
     if (!ok) return;
 
     setRetiring(true);
@@ -127,7 +129,8 @@ export default function ViewClaimModal(props: {
           <div style={{ fontSize: 14, fontWeight: 900, color: textColor }}>View claim</div>
 
           <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-            {canEdit ? (
+            {/* Hide action buttons on retired claims */}
+            {canEdit && !claimIsRetired ? (
               <>
                 <button
                   type="button"
