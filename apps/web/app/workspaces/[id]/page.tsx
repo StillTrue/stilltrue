@@ -19,6 +19,20 @@ type ClaimRow = {
 
 type FilterKey = "all" | "mine" | "private" | "workspace";
 
+type ClaimTextVersionRow = {
+  id: string;
+  claim_id: string;
+  text: string;
+  created_at: string;
+  created_by_profile_id?: string | null;
+};
+
+function formatDateTime(iso: string) {
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return iso;
+  return d.toLocaleString();
+}
+
 export default function WorkspaceClaimsPage() {
   const supabase = createSupabaseBrowserClient();
   const params = useParams();
@@ -75,11 +89,18 @@ export default function WorkspaceClaimsPage() {
   const [loadError, setLoadError] = useState<string | null>(null);
 
   // New claim modal
-  const [modalOpen, setModalOpen] = useState(false);
+  const [newClaimModalOpen, setNewClaimModalOpen] = useState(false);
   const [newText, setNewText] = useState("");
   const [newVisibility, setNewVisibility] = useState<ClaimVisibility>("private");
   const [submitting, setSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
+
+  // View claim modal
+  const [viewClaimModalOpen, setViewClaimModalOpen] = useState(false);
+  const [selectedClaim, setSelectedClaim] = useState<ClaimRow | null>(null);
+  const [versionsLoading, setVersionsLoading] = useState(false);
+  const [versionsError, setVersionsError] = useState<string | null>(null);
+  const [versions, setVersions] = useState<ClaimTextVersionRow[]>([]);
 
   const [filter, setFilter] = useState<FilterKey>("all");
 
@@ -124,7 +145,9 @@ export default function WorkspaceClaimsPage() {
      */
     const { data, error } = await supabase
       .from("claims_visible_to_member")
-      .select("claim_id, workspace_id, visibility, owner_profile_id, review_cadence, validation_mode, created_at, retired_at, current_text")
+      .select(
+        "claim_id, workspace_id, visibility, owner_profile_id, review_cadence, validation_mode, created_at, retired_at, current_text"
+      )
       .eq("workspace_id", workspaceId)
       .is("retired_at", null)
       .order("created_at", { ascending: false });
@@ -192,16 +215,11 @@ export default function WorkspaceClaimsPage() {
       return;
     }
 
-    setModalOpen(false);
+    setNewClaimModalOpen(false);
     setNewText("");
     setNewVisibility("private");
     await loadAll();
   }
-
-  const countAll = claims.length;
-  const countMine = claims.filter((c) => myProfileIds.includes(c.owner_profile_id)).length;
-  const countPriv = claims.filter((c) => c.visibility === "private").length;
-  const countWs = claims.filter((c) => c.visibility === "workspace").length;
 
   function pill(active: boolean): React.CSSProperties {
     return {
@@ -223,6 +241,53 @@ export default function WorkspaceClaimsPage() {
     if (state === "Challenged") return { ...badgeBase, color: "#991b1b", background: "#fef2f2" };
     return { ...badgeBase, color: "#334155", background: "#f8fafc" }; // Retired
   }
+
+  async function openViewClaimModal(claim: ClaimRow) {
+    setSelectedClaim(claim);
+    setViewClaimModalOpen(true);
+
+    setVersions([]);
+    setVersionsError(null);
+    setVersionsLoading(true);
+
+    try {
+      // Query existing table only; RLS must enforce visibility rules.
+      const { data, error } = await supabase
+        .from("claim_text_versions")
+        .select("id, claim_id, text, created_at, created_by_profile_id")
+        .eq("claim_id", claim.claim_id)
+        .order("created_at", { ascending: false });
+
+      if (error) {
+        setVersionsError(error.message);
+        setVersions([]);
+        return;
+      }
+
+      setVersions((data || []) as ClaimTextVersionRow[]);
+    } finally {
+      setVersionsLoading(false);
+    }
+  }
+
+  function closeViewClaimModal() {
+    setViewClaimModalOpen(false);
+    setSelectedClaim(null);
+    setVersions([]);
+    setVersionsError(null);
+    setVersionsLoading(false);
+  }
+
+  const selectedCurrentText = useMemo(() => {
+    if (!selectedClaim) return "";
+    if (versions && versions.length > 0) return versions[0]?.text ?? "";
+    return selectedClaim.current_text ?? "";
+  }, [selectedClaim, versions]);
+
+  const countAll = claims.length;
+  const countMine = claims.filter((c) => myProfileIds.includes(c.owner_profile_id)).length;
+  const countPriv = claims.filter((c) => c.visibility === "private").length;
+  const countWs = claims.filter((c) => c.visibility === "workspace").length;
 
   return (
     <main style={{ minHeight: "100vh", background: pageBg, padding: "40px 16px" }}>
@@ -302,7 +367,7 @@ export default function WorkspaceClaimsPage() {
               </div>
             </div>
 
-            <button type="button" onClick={() => setModalOpen(true)} style={primaryStyle}>
+            <button type="button" onClick={() => setNewClaimModalOpen(true)} style={primaryStyle}>
               + New claim
             </button>
           </div>
@@ -323,13 +388,17 @@ export default function WorkspaceClaimsPage() {
                   const derivedState = claimStateById[c.claim_id]; // only exists for claims you own
                   const title = (c.current_text || "").trim() || "(no text)";
                   return (
-                    <div
+                    <button
                       key={c.claim_id}
+                      type="button"
+                      onClick={() => void openViewClaimModal(c)}
                       style={{
+                        textAlign: "left",
                         padding: 14,
                         border: `1px solid ${border}`,
                         borderRadius: 10,
                         background: "#ffffff",
+                        cursor: "pointer",
                       }}
                     >
                       <div style={{ display: "flex", justifyContent: "space-between", gap: 12 }}>
@@ -351,7 +420,7 @@ export default function WorkspaceClaimsPage() {
                       <div style={{ marginTop: 8, fontSize: 12, color: muted }}>
                         Created {new Date(c.created_at).toLocaleString()}
                       </div>
-                    </div>
+                    </button>
                   );
                 })}
               </div>
@@ -360,8 +429,146 @@ export default function WorkspaceClaimsPage() {
         </div>
       </div>
 
+      {/* View Claim Modal */}
+      {viewClaimModalOpen && selectedClaim && (
+        <div
+          style={{
+            position: "fixed",
+            inset: 0,
+            background: "rgba(0,0,0,0.35)",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            zIndex: 60,
+            padding: 16,
+          }}
+          onMouseDown={(e) => {
+            if (e.target === e.currentTarget) closeViewClaimModal();
+          }}
+        >
+          <div
+            style={{
+              width: "min(820px, 100%)",
+              background: "#ffffff",
+              borderRadius: 12,
+              boxShadow: "0 20px 40px rgba(0,0,0,0.2)",
+              overflow: "hidden",
+              border: `1px solid ${border}`,
+            }}
+          >
+            <div
+              style={{
+                padding: "14px 16px",
+                borderBottom: `1px solid ${border}`,
+                display: "flex",
+                justifyContent: "space-between",
+                alignItems: "center",
+                gap: 12,
+              }}
+            >
+              <div style={{ fontSize: 14, fontWeight: 900, color: text }}>View claim</div>
+              <button
+                type="button"
+                onClick={closeViewClaimModal}
+                style={{
+                  ...pillBase,
+                  borderRadius: 8,
+                  padding: "8px 10px",
+                  fontWeight: 800,
+                }}
+              >
+                Close
+              </button>
+            </div>
+
+            <div style={{ padding: 16, display: "grid", gap: 14 }}>
+              <div
+                style={{
+                  border: `1px solid ${border}`,
+                  borderRadius: 12,
+                  padding: 14,
+                  background: "#ffffff",
+                }}
+              >
+                <div style={{ fontSize: 12, fontWeight: 900, color: muted2, marginBottom: 10, textTransform: "uppercase" }}>
+                  Current wording
+                </div>
+
+                {versionsLoading ? (
+                  <div style={{ fontSize: 13, color: muted }}>Loading…</div>
+                ) : versionsError ? (
+                  <div style={{ fontSize: 13, color: "#b91c1c" }}>{versionsError}</div>
+                ) : (
+                  <div style={{ fontSize: 14, color: text, lineHeight: 1.6, whiteSpace: "pre-wrap" }}>
+                    {(selectedCurrentText || "").trim() || "(no text)"}
+                  </div>
+                )}
+              </div>
+
+              <div
+                style={{
+                  border: `1px solid ${border}`,
+                  borderRadius: 12,
+                  padding: 14,
+                  background: "#ffffff",
+                }}
+              >
+                <div style={{ fontSize: 12, fontWeight: 900, color: muted2, marginBottom: 10, textTransform: "uppercase" }}>
+                  History
+                </div>
+
+                {versionsLoading ? (
+                  <div style={{ fontSize: 13, color: muted }}>Loading…</div>
+                ) : versionsError ? (
+                  <div style={{ fontSize: 13, color: "#b91c1c" }}>{versionsError}</div>
+                ) : versions.length === 0 ? (
+                  <div style={{ fontSize: 13, color: muted }}>No versions found.</div>
+                ) : (
+                  <div style={{ display: "grid", gap: 10 }}>
+                    {versions.map((v) => (
+                      <div
+                        key={v.id}
+                        style={{
+                          border: `1px solid ${border}`,
+                          borderRadius: 10,
+                          padding: 12,
+                          background: "#ffffff",
+                        }}
+                      >
+                        <div style={{ fontSize: 12, color: muted, marginBottom: 6 }}>
+                          {formatDateTime(v.created_at)}
+                        </div>
+                        <div style={{ fontSize: 14, color: text, lineHeight: 1.55, whiteSpace: "pre-wrap" }}>
+                          {v.text}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+
+              <div
+                style={{
+                  border: `1px solid ${border}`,
+                  borderRadius: 12,
+                  padding: 14,
+                  background: "#ffffff",
+                }}
+              >
+                <div style={{ fontSize: 12, fontWeight: 900, color: muted2, marginBottom: 10, textTransform: "uppercase" }}>
+                  Validation summary
+                </div>
+                <div style={{ fontSize: 13, color: muted, lineHeight: 1.6 }}>
+                  Placeholder only. This section will be wired to existing validation tables/views later (no schema invented here).
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* New Claim Modal */}
-      {modalOpen && (
+      {newClaimModalOpen && (
         <div
           style={{
             position: "fixed",
@@ -431,8 +638,9 @@ export default function WorkspaceClaimsPage() {
 
             <div style={{ display: "flex", justifyContent: "flex-end", gap: 10 }}>
               <button
+                type="button"
                 onClick={() => {
-                  setModalOpen(false);
+                  setNewClaimModalOpen(false);
                   setSubmitError(null);
                 }}
                 disabled={submitting}
@@ -448,7 +656,8 @@ export default function WorkspaceClaimsPage() {
               </button>
 
               <button
-                onClick={submitNewClaim}
+                type="button"
+                onClick={() => void submitNewClaim()}
                 disabled={submitting || !newText.trim()}
                 style={{
                   padding: "8px 14px",
