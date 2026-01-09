@@ -36,11 +36,6 @@ function formatDateTime(iso: string) {
   return d.toLocaleString();
 }
 
-function safeNum(v: any): number {
-  const n = Number(v);
-  return Number.isFinite(n) ? n : 0;
-}
-
 function titleCase(s: string) {
   if (!s) return s;
   return s.slice(0, 1).toUpperCase() + s.slice(1);
@@ -90,6 +85,7 @@ export default function ViewClaimModal(props: {
 
   const [retiring, setRetiring] = useState(false);
   const [retireError, setRetireError] = useState<string | null>(null);
+
   const [openingValidation, setOpeningValidation] = useState(false);
   const [openValidationError, setOpenValidationError] = useState<string | null>(null);
 
@@ -113,6 +109,13 @@ export default function ViewClaimModal(props: {
     return claim.current_text ?? "";
   }, [claim, versions]);
 
+  const cadenceLabel = claim?.review_cadence ? titleCase(claim.review_cadence) : null;
+  const modeLabel = claim?.validation_mode
+    ? claim.validation_mode === "any"
+      ? "Any validator"
+      : "All validators"
+    : null;
+
   async function doRetire() {
     if (retiring || claimIsRetired) return;
     setRetireError(null);
@@ -131,16 +134,16 @@ export default function ViewClaimModal(props: {
     }
   }
 
-  async function openValidationRequest() {
+  async function validateNow() {
     if (!claim || openingValidation) return;
+    if (claimIsRetired) return;
+
     setOpenValidationError(null);
     setOpeningValidation(true);
 
     try {
       const latestVersionId = versions?.[0]?.id;
-      if (!latestVersionId) {
-        throw new Error("No claim text version found.");
-      }
+      if (!latestVersionId) throw new Error("No claim text version found.");
 
       const { createSupabaseBrowserClient } = await import("@/lib/supabase/browser");
       const supabase = createSupabaseBrowserClient();
@@ -152,25 +155,17 @@ export default function ViewClaimModal(props: {
       });
 
       if (error) throw error;
-      alert("Validation request opened.");
+
+      // Keep this minimal for now; later the inbox/modal will make this unnecessary.
+      alert("Manual validation request created.");
     } catch (e: any) {
-      setOpenValidationError(e?.message ? String(e.message) : "Failed to open validation request.");
+      setOpenValidationError(e?.message ? String(e.message) : "Failed to create validation request.");
     } finally {
       setOpeningValidation(false);
     }
   }
 
   if (!open || !claim) return null;
-
-  const summary = validationSummary || null;
-
-  const cadenceLabel = claim.review_cadence ? titleCase(claim.review_cadence) : null;
-  const modeLabel =
-    claim.validation_mode === "any"
-      ? "Any validator"
-      : claim.validation_mode === "all"
-      ? "All validators"
-      : null;
 
   return (
     <div
@@ -190,7 +185,7 @@ export default function ViewClaimModal(props: {
     >
       <div
         style={{
-          width: "min(820px, 100%)",
+          width: "min(860px, 100%)",
           background: "#ffffff",
           borderRadius: 12,
           boxShadow: "0 20px 40px rgba(0,0,0,0.2)",
@@ -198,6 +193,7 @@ export default function ViewClaimModal(props: {
           border: `1px solid ${borderColor}`,
         }}
       >
+        {/* Header */}
         <div
           style={{
             padding: "14px 16px",
@@ -213,20 +209,6 @@ export default function ViewClaimModal(props: {
           <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
             {canEdit && !claimIsRetired ? (
               <>
-                <button
-                  type="button"
-                  onClick={openValidationRequest}
-                  disabled={openingValidation}
-                  style={{
-                    ...pillBaseStyle,
-                    borderRadius: 8,
-                    padding: "8px 10px",
-                    fontWeight: 900,
-                  }}
-                >
-                  {openingValidation ? "Opening…" : "Open validation"}
-                </button>
-
                 <button
                   type="button"
                   onClick={doRetire}
@@ -273,47 +255,148 @@ export default function ViewClaimModal(props: {
           </div>
         </div>
 
+        {/* Body */}
         <div style={{ padding: 16, display: "grid", gap: 14 }}>
-          {openValidationError ? (
-            <div style={{ fontSize: 13, color: "#b91c1c" }}>{openValidationError}</div>
-          ) : null}
+          {retireError ? <div style={{ fontSize: 13, color: "#b91c1c" }}>{retireError}</div> : null}
 
-          <div style={{ border: `1px solid ${borderColor}`, borderRadius: 12, padding: 14 }}>
-            <div style={{ fontSize: 12, fontWeight: 900, color: muted2Color, marginBottom: 10 }}>
-              Current wording
-            </div>
-
-            {versionsLoading ? (
-              <div style={{ fontSize: 13, color: mutedColor }}>Loading…</div>
-            ) : versionsError ? (
-              <div style={{ fontSize: 13, color: "#b91c1c" }}>{versionsError}</div>
-            ) : (
-              <div style={{ fontSize: 14, color: textColor, lineHeight: 1.6, whiteSpace: "pre-wrap" }}>
-                {(selectedCurrentText || "").trim() || "(no text)"}
+          <div style={{ display: "grid", gap: 14 }}>
+            {/* Current wording */}
+            <div style={{ border: `1px solid ${borderColor}`, borderRadius: 12, padding: 14, background: "#ffffff" }}>
+              <div
+                style={{
+                  fontSize: 12,
+                  fontWeight: 900,
+                  color: muted2Color,
+                  marginBottom: 10,
+                  textTransform: "uppercase",
+                }}
+              >
+                Current wording
               </div>
-            )}
-          </div>
 
-          <div style={{ border: `1px solid ${borderColor}`, borderRadius: 12, padding: 14 }}>
-            <div style={{ fontSize: 12, fontWeight: 900, color: muted2Color, marginBottom: 10 }}>
-              History
-            </div>
-
-            {versions.map((v) => (
-              <div key={v.id} style={{ marginBottom: 10 }}>
-                <div style={{ fontSize: 12, color: mutedColor }}>
-                  {formatDateTime(v.created_at)}
+              {versionsLoading ? (
+                <div style={{ fontSize: 13, color: mutedColor }}>Loading…</div>
+              ) : versionsError ? (
+                <div style={{ fontSize: 13, color: "#b91c1c" }}>{versionsError}</div>
+              ) : (
+                <div style={{ fontSize: 14, color: textColor, lineHeight: 1.6, whiteSpace: "pre-wrap" }}>
+                  {(selectedCurrentText || "").trim() || "(no text)"}
                 </div>
-                <div style={{ fontSize: 14, color: textColor }}>{v.text}</div>
-              </div>
-            ))}
-          </div>
-
-          {canEdit && (cadenceLabel || modeLabel) ? (
-            <div style={{ fontSize: 13, color: mutedColor }}>
-              Validation cadence: {cadenceLabel ?? "—"} · Mode: {modeLabel ?? "—"}
+              )}
             </div>
-          ) : null}
+
+            {/* History */}
+            <div style={{ border: `1px solid ${borderColor}`, borderRadius: 12, padding: 14, background: "#ffffff" }}>
+              <div
+                style={{
+                  fontSize: 12,
+                  fontWeight: 900,
+                  color: muted2Color,
+                  marginBottom: 10,
+                  textTransform: "uppercase",
+                }}
+              >
+                History
+              </div>
+
+              {versionsLoading ? (
+                <div style={{ fontSize: 13, color: mutedColor }}>Loading…</div>
+              ) : versionsError ? (
+                <div style={{ fontSize: 13, color: "#b91c1c" }}>{versionsError}</div>
+              ) : versions.length === 0 ? (
+                <div style={{ fontSize: 13, color: mutedColor }}>No versions found.</div>
+              ) : (
+                <div style={{ display: "grid", gap: 10 }}>
+                  {versions.map((v) => (
+                    <div
+                      key={v.id}
+                      style={{
+                        border: `1px solid ${borderColor}`,
+                        borderRadius: 10,
+                        padding: 12,
+                        background: "#ffffff",
+                      }}
+                    >
+                      <div style={{ fontSize: 12, color: mutedColor, marginBottom: 6 }}>{formatDateTime(v.created_at)}</div>
+                      <div style={{ fontSize: 14, color: textColor, lineHeight: 1.55, whiteSpace: "pre-wrap" }}>
+                        {v.text}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            {/* Validation */}
+            <div style={{ border: `1px solid ${borderColor}`, borderRadius: 12, padding: 14, background: "#ffffff" }}>
+              <div
+                style={{
+                  fontSize: 12,
+                  fontWeight: 900,
+                  color: muted2Color,
+                  marginBottom: 10,
+                  textTransform: "uppercase",
+                }}
+              >
+                Validation
+              </div>
+
+              {canEdit ? (
+                <>
+                  <div style={{ fontSize: 13, color: mutedColor, lineHeight: 1.6 }}>
+                    Cadence: <strong style={{ color: textColor }}>{cadenceLabel ?? "—"}</strong> · Mode:{" "}
+                    <strong style={{ color: textColor }}>{modeLabel ?? "—"}</strong>
+                  </div>
+
+                  {openValidationError ? (
+                    <div style={{ marginTop: 10, fontSize: 13, color: "#b91c1c" }}>{openValidationError}</div>
+                  ) : null}
+
+                  <div style={{ marginTop: 12, display: "flex", justifyContent: "flex-end" }}>
+                    <button
+                      type="button"
+                      onClick={() => void validateNow()}
+                      disabled={openingValidation || claimIsRetired}
+                      style={{
+                        ...pillBaseStyle,
+                        borderRadius: 8,
+                        padding: "9px 12px",
+                        fontWeight: 900,
+                        opacity: openingValidation || claimIsRetired ? 0.7 : 1,
+                      }}
+                    >
+                      {openingValidation ? "Validating…" : "Validate now"}
+                    </button>
+                  </div>
+
+                  <div style={{ marginTop: 10, fontSize: 13, color: mutedColor, lineHeight: 1.6 }}>
+                    This creates a manual validation request for the current wording. Signals are visible only to the claim owner.
+                  </div>
+
+                  {/* Optional summary, if wired by page.tsx */}
+                  {validationSummaryLoading ? (
+                    <div style={{ marginTop: 10, fontSize: 13, color: mutedColor }}>Loading validation summary…</div>
+                  ) : validationSummaryError ? (
+                    <div style={{ marginTop: 10, fontSize: 13, color: "#b91c1c" }}>{validationSummaryError}</div>
+                  ) : validationSummary ? (
+                    <div style={{ marginTop: 10, fontSize: 13, color: mutedColor, lineHeight: 1.6 }}>
+                      Requests:{" "}
+                      <strong style={{ color: textColor }}>
+                        {validationSummary.total_requests} total
+                      </strong>{" "}
+                      ({validationSummary.open_requests} open, {validationSummary.closed_requests} closed) · Responses:{" "}
+                      <strong style={{ color: textColor }}>{validationSummary.total_responses}</strong> (Yes{" "}
+                      {validationSummary.yes_count}, Unsure {validationSummary.unsure_count}, No {validationSummary.no_count})
+                    </div>
+                  ) : null}
+                </>
+              ) : (
+                <div style={{ fontSize: 13, color: mutedColor, lineHeight: 1.6 }}>
+                  Validation signals are visible only to the claim owner.
+                </div>
+              )}
+            </div>
+          </div>
         </div>
       </div>
     </div>
