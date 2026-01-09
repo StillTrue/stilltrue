@@ -5,6 +5,7 @@ import { useMemo } from "react";
 type ClaimVisibility = "private" | "workspace";
 type ClaimState = "Affirmed" | "Unconfirmed" | "Challenged" | "Retired";
 
+// Keep in sync with page.tsx (we intentionally keep local types per file)
 type ReviewCadence = "weekly" | "monthly" | "quarterly" | "custom";
 type ValidationMode = "any" | "all";
 
@@ -16,9 +17,9 @@ type ClaimRow = {
   retired_at: string | null;
   current_text: string | null;
 
-  // present on claims + claims_visible_to_member (even if not used in this list UI yet)
-  review_cadence: ReviewCadence;
-  validation_mode: ValidationMode;
+  // These are now carried through for owner-only surfaces (not displayed here)
+  review_cadence?: ReviewCadence;
+  validation_mode?: ValidationMode;
 };
 
 type FilterKey = "all" | "mine" | "private" | "workspace" | "retired";
