@@ -23,8 +23,8 @@ type ClaimRow = {
   retired_at: string | null;
   current_text: string | null;
 
-  review_cadence?: ReviewCadence;
-  validation_mode?: ValidationMode;
+  review_cadence: ReviewCadence;
+  validation_mode: ValidationMode;
 };
 
 type FilterKey = "all" | "mine" | "private" | "workspace" | "retired";
@@ -48,12 +48,15 @@ type ClaimValidationSummary = {
   no_count: number;
 };
 
-type ClaimValidatorRow = {
-  id: string;
+type ClaimValidatorIdentityRow = {
+  validator_id: string;
   claim_id: string;
   validator_profile_id: string;
-  kind: ValidatorKind;
+  validator_kind: ValidatorKind;
   created_at: string;
+  user_id: string | null;
+  user_email: string | null;
+  workspace_id: string;
 };
 
 export default function WorkspaceClaimsPage() {
@@ -111,12 +114,10 @@ export default function WorkspaceClaimsPage() {
 
   const [editClaimModalOpen, setEditClaimModalOpen] = useState(false);
 
-  // owner-only validator list for selected claim
   const [validatorsLoading, setValidatorsLoading] = useState(false);
   const [validatorsError, setValidatorsError] = useState<string | null>(null);
-  const [validators, setValidators] = useState<ClaimValidatorRow[]>([]);
+  const [validators, setValidators] = useState<ClaimValidatorIdentityRow[]>([]);
 
-  // (optional) owner-only validation summary wiring exists in ViewClaimModal props but can remain empty for now
   const [validationSummaryLoading, setValidationSummaryLoading] = useState(false);
   const [validationSummaryError, setValidationSummaryError] = useState<string | null>(null);
   const [validationSummary, setValidationSummary] = useState<ClaimValidationSummary | null>(null);
@@ -176,8 +177,8 @@ export default function WorkspaceClaimsPage() {
       created_at: String(c.created_at),
       retired_at: c.retired_at ? String(c.retired_at) : null,
       current_text: c.current_text ?? null,
-      review_cadence: (c.review_cadence as ReviewCadence) || undefined,
-      validation_mode: (c.validation_mode as ValidationMode) || undefined,
+      review_cadence: c.review_cadence as ReviewCadence,
+      validation_mode: c.validation_mode as ValidationMode,
     }));
 
     setClaims(mapped);
@@ -230,8 +231,8 @@ export default function WorkspaceClaimsPage() {
 
     try {
       const { data, error } = await supabase
-        .from("claim_validators")
-        .select("id, claim_id, validator_profile_id, kind, created_at")
+        .from("claim_validators_with_identity")
+        .select("validator_id, claim_id, validator_profile_id, validator_kind, created_at, user_id, user_email, workspace_id")
         .eq("claim_id", claimId)
         .order("created_at", { ascending: true });
 
@@ -241,7 +242,7 @@ export default function WorkspaceClaimsPage() {
         return;
       }
 
-      setValidators((data || []) as ClaimValidatorRow[]);
+      setValidators((data || []) as ClaimValidatorIdentityRow[]);
     } finally {
       setValidatorsLoading(false);
     }
@@ -257,7 +258,6 @@ export default function WorkspaceClaimsPage() {
     setViewClaimModalOpen(true);
     setEditClaimModalOpen(false);
 
-    // reset owner-only panels
     setValidationSummary(null);
     setValidationSummaryError(null);
     setValidationSummaryLoading(false);
@@ -315,6 +315,12 @@ export default function WorkspaceClaimsPage() {
   }
 
   const countRetired = claims.filter((c) => !!c.retired_at).length;
+
+  function labelForValidator(v: ClaimValidatorIdentityRow) {
+    const emailVal = (v.user_email || "").trim();
+    if (emailVal) return emailVal;
+    return `${v.validator_profile_id.slice(0, 8)}…`;
+  }
 
   return (
     <main style={{ minHeight: "100vh", background: pageBg, padding: "40px 16px" }}>
@@ -396,8 +402,6 @@ export default function WorkspaceClaimsPage() {
         validationSummary={validationSummary}
       />
 
-      {/* Owner-only read-only validator list inside the view modal via a tiny "footer" block:
-          We render it here as a lightweight overlay panel so we don't have to change ViewClaimModal again. */}
       {viewClaimModalOpen && selectedClaim && canEditSelected ? (
         <div
           style={{
@@ -440,7 +444,7 @@ export default function WorkspaceClaimsPage() {
                 <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
                   {validators.map((v) => (
                     <div
-                      key={v.id}
+                      key={v.validator_id}
                       style={{
                         fontSize: 13,
                         fontWeight: 800,
@@ -452,7 +456,7 @@ export default function WorkspaceClaimsPage() {
                       }}
                       title={`profile_id: ${v.validator_profile_id}`}
                     >
-                      {v.kind === "human" ? "Human" : "Automated"} · {v.validator_profile_id.slice(0, 8)}…
+                      {v.validator_kind === "human" ? "Human" : "Automated"} · {labelForValidator(v)}
                     </div>
                   ))}
                 </div>
