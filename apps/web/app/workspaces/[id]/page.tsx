@@ -11,9 +11,9 @@ import EditClaimModal from "./EditClaimModal";
 
 type ClaimVisibility = "private" | "workspace";
 type ClaimState = "Affirmed" | "Unconfirmed" | "Challenged" | "Retired";
-
 type ReviewCadence = "weekly" | "monthly" | "quarterly" | "custom";
 type ValidationMode = "any" | "all";
+type ValidatorKind = "human" | "automated";
 
 type ClaimRow = {
   claim_id: string;
@@ -22,8 +22,9 @@ type ClaimRow = {
   created_at: string;
   retired_at: string | null;
   current_text: string | null;
-  review_cadence: ReviewCadence;
-  validation_mode: ValidationMode;
+
+  review_cadence?: ReviewCadence;
+  validation_mode?: ValidationMode;
 };
 
 type FilterKey = "all" | "mine" | "private" | "workspace" | "retired";
@@ -45,6 +46,14 @@ type ClaimValidationSummary = {
   yes_count: number;
   unsure_count: number;
   no_count: number;
+};
+
+type ClaimValidatorRow = {
+  id: string;
+  claim_id: string;
+  validator_profile_id: string;
+  kind: ValidatorKind;
+  created_at: string;
 };
 
 export default function WorkspaceClaimsPage() {
@@ -102,9 +111,15 @@ export default function WorkspaceClaimsPage() {
 
   const [editClaimModalOpen, setEditClaimModalOpen] = useState(false);
 
-  const [validationSummary, setValidationSummary] = useState<ClaimValidationSummary | null>(null);
+  // owner-only validator list for selected claim
+  const [validatorsLoading, setValidatorsLoading] = useState(false);
+  const [validatorsError, setValidatorsError] = useState<string | null>(null);
+  const [validators, setValidators] = useState<ClaimValidatorRow[]>([]);
+
+  // (optional) owner-only validation summary wiring exists in ViewClaimModal props but can remain empty for now
   const [validationSummaryLoading, setValidationSummaryLoading] = useState(false);
   const [validationSummaryError, setValidationSummaryError] = useState<string | null>(null);
+  const [validationSummary, setValidationSummary] = useState<ClaimValidationSummary | null>(null);
 
   const [filter, setFilter] = useState<FilterKey>("all");
 
@@ -161,8 +176,8 @@ export default function WorkspaceClaimsPage() {
       created_at: String(c.created_at),
       retired_at: c.retired_at ? String(c.retired_at) : null,
       current_text: c.current_text ?? null,
-      review_cadence: c.review_cadence as ReviewCadence,
-      validation_mode: c.validation_mode as ValidationMode,
+      review_cadence: (c.review_cadence as ReviewCadence) || undefined,
+      validation_mode: (c.validation_mode as ValidationMode) || undefined,
     }));
 
     setClaims(mapped);
@@ -208,26 +223,27 @@ export default function WorkspaceClaimsPage() {
     }
   }
 
-  async function loadValidationSummary(claimId: string) {
-    setValidationSummary(null);
-    setValidationSummaryError(null);
-    setValidationSummaryLoading(true);
+  async function loadValidatorsForClaim(claimId: string) {
+    setValidators([]);
+    setValidatorsError(null);
+    setValidatorsLoading(true);
 
     try {
       const { data, error } = await supabase
-        .from("claim_validation_summary")
-        .select("*")
+        .from("claim_validators")
+        .select("id, claim_id, validator_profile_id, kind, created_at")
         .eq("claim_id", claimId)
-        .maybeSingle();
+        .order("created_at", { ascending: true });
 
       if (error) {
-        setValidationSummaryError(error.message);
+        setValidatorsError(error.message);
+        setValidators([]);
         return;
       }
 
-      setValidationSummary((data as any) || null);
+      setValidators((data || []) as ClaimValidatorRow[]);
     } finally {
-      setValidationSummaryLoading(false);
+      setValidatorsLoading(false);
     }
   }
 
@@ -241,29 +257,48 @@ export default function WorkspaceClaimsPage() {
     setViewClaimModalOpen(true);
     setEditClaimModalOpen(false);
 
+    // reset owner-only panels
+    setValidationSummary(null);
+    setValidationSummaryError(null);
+    setValidationSummaryLoading(false);
+
     await loadVersionsForClaim(claim.claim_id);
 
     if (myProfileIds.includes(claim.owner_profile_id)) {
-      await loadValidationSummary(claim.claim_id);
+      await loadValidatorsForClaim(claim.claim_id);
+    } else {
+      setValidators([]);
+      setValidatorsError(null);
+      setValidatorsLoading(false);
     }
   }
 
   function closeViewClaimModal() {
     setViewClaimModalOpen(false);
     setSelectedClaim(null);
+
     setVersions([]);
     setVersionsError(null);
     setVersionsLoading(false);
-    setEditClaimModalOpen(false);
+
+    setValidators([]);
+    setValidatorsError(null);
+    setValidatorsLoading(false);
+
     setValidationSummary(null);
     setValidationSummaryError(null);
     setValidationSummaryLoading(false);
+
+    setEditClaimModalOpen(false);
   }
 
   async function afterEditSaved() {
     await loadAll();
     if (selectedClaim?.claim_id) {
       await loadVersionsForClaim(selectedClaim.claim_id);
+      if (selectedClaim && myProfileIds.includes(selectedClaim.owner_profile_id)) {
+        await loadValidatorsForClaim(selectedClaim.claim_id);
+      }
     }
   }
 
@@ -350,16 +385,82 @@ export default function WorkspaceClaimsPage() {
         canEdit={canEditSelected}
         onEdit={() => setEditClaimModalOpen(true)}
         onRetire={retireSelectedClaim}
-        validationSummary={validationSummary}
-        validationSummaryLoading={validationSummaryLoading}
-        validationSummaryError={validationSummaryError}
         borderColor={border}
         textColor={text}
         mutedColor={muted}
         muted2Color={muted2}
         pillBaseStyle={pillBase}
         onClose={closeViewClaimModal}
+        validationSummaryLoading={validationSummaryLoading}
+        validationSummaryError={validationSummaryError}
+        validationSummary={validationSummary}
       />
+
+      {/* Owner-only read-only validator list inside the view modal via a tiny "footer" block:
+          We render it here as a lightweight overlay panel so we don't have to change ViewClaimModal again. */}
+      {viewClaimModalOpen && selectedClaim && canEditSelected ? (
+        <div
+          style={{
+            position: "fixed",
+            inset: 0,
+            pointerEvents: "none",
+            zIndex: 65,
+          }}
+        >
+          <div
+            style={{
+              position: "absolute",
+              left: "50%",
+              transform: "translateX(-50%)",
+              bottom: 18,
+              width: "min(820px, calc(100% - 32px))",
+              pointerEvents: "auto",
+            }}
+          >
+            <div
+              style={{
+                border: `1px solid ${border}`,
+                background: "#ffffff",
+                borderRadius: 12,
+                boxShadow: "0 12px 30px rgba(0,0,0,0.12)",
+                padding: 14,
+              }}
+            >
+              <div style={{ fontSize: 12, fontWeight: 900, color: muted2, textTransform: "uppercase", marginBottom: 8 }}>
+                Validators (owner only)
+              </div>
+
+              {validatorsLoading ? (
+                <div style={{ fontSize: 13, color: muted }}>Loading…</div>
+              ) : validatorsError ? (
+                <div style={{ fontSize: 13, color: "#b91c1c" }}>{validatorsError}</div>
+              ) : validators.length === 0 ? (
+                <div style={{ fontSize: 13, color: muted }}>No validators configured.</div>
+              ) : (
+                <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
+                  {validators.map((v) => (
+                    <div
+                      key={v.id}
+                      style={{
+                        fontSize: 13,
+                        fontWeight: 800,
+                        border: `1px solid ${border}`,
+                        padding: "6px 10px",
+                        borderRadius: 999,
+                        background: "#f8fafc",
+                        color: text,
+                      }}
+                      title={`profile_id: ${v.validator_profile_id}`}
+                    >
+                      {v.kind === "human" ? "Human" : "Automated"} · {v.validator_profile_id.slice(0, 8)}…
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      ) : null}
 
       <EditClaimModal
         open={editClaimModalOpen}
