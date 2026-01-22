@@ -348,6 +348,10 @@ export default function WorkspaceClaimsPage() {
               Workspaces
             </Link>
 
+            <Link href="/validation" style={{ ...pillBase, borderRadius: 8 }}>
+              Validation Inbox
+            </Link>
+
             <form action="/auth/logout" method="post" style={{ margin: 0 }}>
               <button type="submit" style={primaryStyle}>
                 Logout
