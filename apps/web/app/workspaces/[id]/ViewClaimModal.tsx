@@ -369,10 +369,6 @@ export default function ViewClaimModal(props: {
                     </button>
                   </div>
 
-                  <div style={{ marginTop: 10, fontSize: 13, color: mutedColor, lineHeight: 1.6 }}>
-                    This creates a manual validation request for the current wording. Signals are visible only to the claim owner.
-                  </div>
-
                   {/* Optional summary, if wired by page.tsx */}
                   {validationSummaryLoading ? (
                     <div style={{ marginTop: 10, fontSize: 13, color: mutedColor }}>Loading validation summary…</div>
