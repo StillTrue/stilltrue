@@ -30,6 +30,12 @@ type ClaimValidationSummary = {
   no_count: number;
 };
 
+type PendingRecipientRow = {
+  request_id: string;
+  pending_validator_profile_id: string;
+  pending_validator_email: string | null;
+};
+
 function formatDateTime(iso: string) {
   const d = new Date(iso);
   if (Number.isNaN(d.getTime())) return iso;
@@ -148,18 +154,52 @@ export default function ViewClaimModal(props: {
       const { createSupabaseBrowserClient } = await import("@/lib/supabase/browser");
       const supabase = createSupabaseBrowserClient();
 
-      const { error } = await supabase.rpc("open_validation_request", {
+      // Try to open a new manual request (this will fail if one is already open)
+      const openRes = await supabase.rpc("open_validation_request", {
         _claim_id: claim.claim_id,
         _kind: "manual",
         _claim_text_version_id: latestVersionId,
       });
 
-      if (error) throw error;
+      if (!openRes.error) {
+        alert("Validation request created.");
+        return;
+      }
 
-      // Keep this minimal for now; later the inbox/modal will make this unnecessary.
-      alert("Manual validation request created.");
+      const msg = String(openRes.error?.message || "");
+
+      // If one already exists, remind only the validators who haven't responded yet.
+      if (msg.toLowerCase().includes("open validation request already exists")) {
+        const remindRes = await supabase.rpc("remind_open_validation_request", {
+          _claim_id: claim.claim_id,
+        });
+
+        if (remindRes.error) throw remindRes.error;
+
+        const rows = (Array.isArray(remindRes.data) ? remindRes.data : []) as PendingRecipientRow[];
+        const uniqueEmails = Array.from(
+          new Set(
+            rows
+              .map((r) => (r?.pending_validator_email ? String(r.pending_validator_email).trim() : ""))
+              .filter((e) => !!e)
+          )
+        );
+
+        if (rows.length === 0) {
+          alert("An open request already exists, and all validators have already responded. No reminders needed.");
+        } else if (uniqueEmails.length > 0) {
+          alert(`Reminder queued for ${uniqueEmails.length} pending validator(s):\n\n${uniqueEmails.join("\n")}`);
+        } else {
+          alert(`Reminder queued for ${rows.length} pending validator(s).`);
+        }
+
+        return;
+      }
+
+      // Any other error: surface it
+      throw openRes.error;
     } catch (e: any) {
-      setOpenValidationError(e?.message ? String(e.message) : "Failed to create validation request.");
+      setOpenValidationError(e?.message ? String(e.message) : "Failed to create or remind validation request.");
     } finally {
       setOpeningValidation(false);
     }
@@ -377,10 +417,8 @@ export default function ViewClaimModal(props: {
                   ) : validationSummary ? (
                     <div style={{ marginTop: 10, fontSize: 13, color: mutedColor, lineHeight: 1.6 }}>
                       Requests:{" "}
-                      <strong style={{ color: textColor }}>
-                        {validationSummary.total_requests} total
-                      </strong>{" "}
-                      ({validationSummary.open_requests} open, {validationSummary.closed_requests} closed) · Responses:{" "}
+                      <strong style={{ color: textColor }}>{validationSummary.total_requests} total</strong> (
+                      {validationSummary.open_requests} open, {validationSummary.closed_requests} closed) · Responses:{" "}
                       <strong style={{ color: textColor }}>{validationSummary.total_responses}</strong> (Yes{" "}
                       {validationSummary.yes_count}, Unsure {validationSummary.unsure_count}, No {validationSummary.no_count})
                     </div>
