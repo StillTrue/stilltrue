@@ -30,9 +30,10 @@ type ClaimValidationSummary = {
   no_count: number;
 };
 
-type PendingRecipientRow = {
+type ValidateNowRow = {
   request_id: string;
-  pending_validator_profile_id: string;
+  action: "created" | "reminded" | string;
+  pending_validator_profile_id: string | null;
   pending_validator_email: string | null;
 };
 
@@ -154,50 +155,56 @@ export default function ViewClaimModal(props: {
       const { createSupabaseBrowserClient } = await import("@/lib/supabase/browser");
       const supabase = createSupabaseBrowserClient();
 
-      // Try to open a new manual request (this will fail if one is already open)
-      const openRes = await supabase.rpc("open_validation_request", {
+      const res = await supabase.rpc("validate_now_for_claim", {
         _claim_id: claim.claim_id,
         _kind: "manual",
         _claim_text_version_id: latestVersionId,
       });
 
-      if (!openRes.error) {
-        alert("Validation request created.");
-        return;
-      }
+      if (res.error) throw res.error;
 
-      const msg = String(openRes.error?.message || "");
+      const rows = (Array.isArray(res.data) ? res.data : []) as ValidateNowRow[];
+      const first = rows[0];
 
-      // If one already exists, remind only the validators who haven't responded yet.
-      if (msg.toLowerCase().includes("open validation request already exists")) {
-        const remindRes = await supabase.rpc("remind_open_validation_request", {
-          _claim_id: claim.claim_id,
-        });
+      const requestId = first?.request_id ? String(first.request_id) : "";
+      const action = first?.action ? String(first.action) : "";
 
-        if (remindRes.error) throw remindRes.error;
+      const pendingEmails = Array.from(
+        new Set(
+          rows
+            .map((r) => (r?.pending_validator_email ? String(r.pending_validator_email).trim() : ""))
+            .filter((e) => !!e)
+        )
+      );
 
-        const rows = (Array.isArray(remindRes.data) ? remindRes.data : []) as PendingRecipientRow[];
-        const uniqueEmails = Array.from(
-          new Set(
-            rows
-              .map((r) => (r?.pending_validator_email ? String(r.pending_validator_email).trim() : ""))
-              .filter((e) => !!e)
-          )
-        );
+      const pendingCount = rows.filter((r) => !!r?.pending_validator_profile_id).length;
 
-        if (rows.length === 0) {
-          alert("An open request already exists, and all validators have already responded. No reminders needed.");
-        } else if (uniqueEmails.length > 0) {
-          alert(`Reminder queued for ${uniqueEmails.length} pending validator(s):\n\n${uniqueEmails.join("\n")}`);
+      if (action === "created") {
+        if (pendingEmails.length > 0) {
+          alert(`Validation request created.\n\nPending validator(s):\n${pendingEmails.join("\n")}`);
         } else {
-          alert(`Reminder queued for ${rows.length} pending validator(s).`);
+          alert("Validation request created.");
         }
-
         return;
       }
 
-      // Any other error: surface it
-      throw openRes.error;
+      if (action === "reminded") {
+        if (pendingCount === 0) {
+          alert("An open request already exists, and all validators have already responded. No reminders needed.");
+        } else if (pendingEmails.length > 0) {
+          alert(`Reminder queued for ${pendingEmails.length} pending validator(s):\n\n${pendingEmails.join("\n")}`);
+        } else {
+          alert(`Reminder queued for ${pendingCount} pending validator(s).`);
+        }
+        return;
+      }
+
+      // Fallback if action is unexpected
+      if (requestId) {
+        alert("Validation updated.");
+      } else {
+        alert("Validation updated.");
+      }
     } catch (e: any) {
       setOpenValidationError(e?.message ? String(e.message) : "Failed to create or remind validation request.");
     } finally {
@@ -416,8 +423,7 @@ export default function ViewClaimModal(props: {
                     <div style={{ marginTop: 10, fontSize: 13, color: "#b91c1c" }}>{validationSummaryError}</div>
                   ) : validationSummary ? (
                     <div style={{ marginTop: 10, fontSize: 13, color: mutedColor, lineHeight: 1.6 }}>
-                      Requests:{" "}
-                      <strong style={{ color: textColor }}>{validationSummary.total_requests} total</strong> (
+                      Requests: <strong style={{ color: textColor }}>{validationSummary.total_requests} total</strong> (
                       {validationSummary.open_requests} open, {validationSummary.closed_requests} closed) · Responses:{" "}
                       <strong style={{ color: textColor }}>{validationSummary.total_responses}</strong> (Yes{" "}
                       {validationSummary.yes_count}, Unsure {validationSummary.unsure_count}, No {validationSummary.no_count})
